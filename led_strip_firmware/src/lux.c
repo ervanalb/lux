@@ -58,7 +58,7 @@ static uint8_t cobs_decode(uint8_t src, uint8_t* dest)
     uint8_t result;
     if(!cobs_remaining)
     {
-        cobs_remaining=src;
+        cobs_remaining=src-1;
         result=cobs_add_zero;
         if(cobs_add_zero)
         {
@@ -69,7 +69,7 @@ static uint8_t cobs_decode(uint8_t src, uint8_t* dest)
             cobs_last_zero=1;
             *dest=0;
         }
-        cobs_add_zero = (cobs_remaining < 255);
+        cobs_add_zero = (src < 255);
         return result;
     }
     if(cobs_last_zero)
