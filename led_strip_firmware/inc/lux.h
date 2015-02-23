@@ -13,16 +13,14 @@ void lux_codec();
 void lux_stop_rx();
 
 // Run lux_send to send a packet
-void lux_send();
+void lux_start_tx();
 
-#define LUX_CHECKSUM_SIZE 8
-#define LUX_DESTINATION_SIZE 8
-#define LUX_SERIAL_BUFFER_SIZE 512
+#define LUX_CHECKSUM_SIZE 4
+#define LUX_DESTINATION_SIZE 4
 #define LUX_PACKET_MEMORY_SIZE 1024
-#define LUX_PACKET_MEMORY_ALLOCATED_SIZE (LUX_PACKET_MEMORY_SIZE+LUX_CHECKSUM_SIZE+1) // +1 because every COBS frame ends with a 0
+#define LUX_PACKET_MEMORY_ALLOCATED_SIZE (LUX_PACKET_MEMORY_SIZE+LUX_CHECKSUM_SIZE)
 
 extern uint8_t lux_destination[LUX_DESTINATION_SIZE];
-extern uint8_t lux_serial_buffer[LUX_SERIAL_BUFFER_SIZE];
 extern uint8_t lux_packet[LUX_PACKET_MEMORY_ALLOCATED_SIZE];
 
 extern int lux_packet_length;
