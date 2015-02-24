@@ -3,21 +3,25 @@
 #include "lux_hal.h"
 
 // Global variables
-uint8_t lux_destination[LUX_DESTINATION_SIZE];
-uint8_t lux_serial_buffer[LUX_SERIAL_BUFFER_SIZE];
-uint8_t lux_packet[LUX_PACKET_MEMORY_ALLOCATED_SIZE];
 
+// Useful buffers for the application
+uint8_t lux_destination[LUX_DESTINATION_SIZE];
+uint8_t lux_packet[LUX_PACKET_MEMORY_ALLOCATED_SIZE];
 int lux_packet_length;
 
+// Counters for problematic data
 int lux_malformed_packet_counter;
 int lux_packet_overrun_counter;
 int lux_bad_checksum_counter;
-int lux_rx_while_tx_counter;
+int lux_rx_interrupted_counter;
 
+// Flag indicating whether there is currently a received packet in lux_packet
 uint8_t lux_packet_in_memory;
 
 // Local variables
-enum
+
+// The current state of the encoder / decoder (codec)
+static enum
 {
     CODEC_START,
     READ_DESTINATION,
@@ -27,29 +31,44 @@ enum
     ENCODER_STALLED,
 } codec_state;
 
-enum
+// The current sub-state of the encoder (within ENCODE / ENCODER_STALLED)
+static enum
 {
     ENCODER_START,
     WRITE_DESTINATION,
     WRITE_PAYLOAD,
-    WRITE_CHECKSUM,
+    WRITE_CRC,
     FLUSH,
 } encoder_state;
 
-int16_t packet_pointer;
-int8_t destination_pointer;
+// Pointer to current index in lux_packet
+static int16_t packet_pointer;
+// Pointer to current index in lux_destination
+static int8_t destination_pointer;
+// Temporary home for destination until we can be sure it matches
+static uint8_t tmp_destination[LUX_DESTINATION_SIZE];
+
+// Number of bytes remaining in the COBS block
+static uint8_t cobs_remaining;
+// Flag indicating whether or not a zero byte is due at the end of this COBS block
+static uint8_t cobs_add_zero;
+
+// Buffer and pointers for the COBS encoder to hold the current block
+static uint8_t cobs_encoder_fill_ptr;
+static uint8_t cobs_encoder_send_ptr;
+static uint8_t cobs_buffer[256];
 
 // Local functions
 
-uint8_t cobs_remaining;
-uint8_t cobs_add_zero;
-
+// Prepare COBS decoder for the start of a new block
 static void reset_cobs_decoder()
 {
     cobs_remaining=0;
     cobs_add_zero=0;
 }
 
+// Decode one COBS byte from src, and put the result in *dest
+// Returns 1 if *dest was populated, 0 otherwise.
 static uint8_t cobs_decode(uint8_t src, uint8_t* dest)
 {
     uint8_t result;
@@ -72,24 +91,22 @@ static uint8_t cobs_decode(uint8_t src, uint8_t* dest)
     return 1;
 }
 
-static uint8_t cobs_encoder_write_ptr;
-static uint8_t cobs_encoder_read_ptr;
-static uint8_t cobs_buffer[256];
-
+// Prepare the COBS encoder for the start of a new block
 static void reset_cobs_encoder()
 {
-    cobs_encoder_write_ptr=1;
+    cobs_encoder_fill_ptr=1;
 }
 
-// Returns: if message completely written
-static uint8_t serial_write_continuation()
+// Write out as much of the remaining bytes in the COBS encoder buffer as possible.
+// Returns 1 if the message was completely transmitted.
+static uint8_t write_continuation()
 {
-    while(cobs_encoder_read_ptr<cobs_encoder_write_ptr && lux_hal_bytes_to_write())
+    while(cobs_encoder_send_ptr<cobs_encoder_fill_ptr && lux_hal_bytes_to_write())
     {
-        lux_hal_write_byte(cobs_buffer[cobs_encoder_read_ptr++]);
+        lux_hal_write_byte(cobs_buffer[cobs_encoder_send_ptr++]);
     }
 
-    if(cobs_encoder_read_ptr == cobs_encoder_write_ptr)
+    if(cobs_encoder_send_ptr == cobs_encoder_fill_ptr)
     {
         reset_cobs_encoder();
         return 1;
@@ -97,12 +114,22 @@ static uint8_t serial_write_continuation()
     return 0;
 }
 
-static uint8_t serial_write()
+// Write out the current COBS encoder buffer.
+// Returns 1 if the message was completely transmitted.
+// If the message was not completely transmitted, subsequent calls to
+// write_continuation are necessary before additional COBS encoding
+// can be performed.
+static uint8_t write()
 {
-    cobs_encoder_read_ptr=0;
-    return serial_write_continuation();
+    cobs_encoder_send_ptr=0;
+    return write_continuation();
 }
 
+// Encode a byte using COBS and send it (buffered by block.)
+// Returns 1 if additional bytes can be written.
+// If this function returns 0, subsequent calls to
+// write_continuation are necessary before additional COBS encoding
+// can be performed.
 static uint8_t cobs_encode_and_send(uint8_t byte)
 {
     lux_hal_crc(byte);
@@ -113,25 +140,30 @@ static uint8_t cobs_encode_and_send(uint8_t byte)
     }
     else
     {
-        cobs_buffer[cobs_encoder_write_ptr++]=byte;
+        cobs_buffer[cobs_encoder_fill_ptr++]=byte;
     }
-    if(cobs_encoder_write_ptr == 256)
+    if(cobs_encoder_fill_ptr == 256)
     {
-        cobs_encoder_write_ptr = 255;
+        cobs_encoder_fill_ptr = 255;
         goto write;
     }
     return 1;
 
     write:
-    cobs_buffer[0]=cobs_encoder_write_ptr;
-    return serial_write();
+    cobs_buffer[0]=cobs_encoder_fill_ptr;
+    return write();
 }
 
-static uint8_t cobs_encode_finish()
+// Finishes the current COBS block, adds a null terminator, and writes it out.
+// Returns 1 if the message was completely transmitted.
+// If the message was not completely transmitted, subsequent calls to
+// write_continuation are necessary before additional COBS encoding
+// can be performed.
+static uint8_t cobs_encode_flush()
 {
-    cobs_buffer[0]=cobs_encoder_write_ptr;
-    cobs_buffer[cobs_encoder_write_ptr++]=0;
-    return serial_write();
+    cobs_buffer[0]=cobs_encoder_fill_ptr;
+    cobs_buffer[cobs_encoder_fill_ptr++]=0;
+    return write();
 }
 
 // Global functions
@@ -141,13 +173,16 @@ void lux_init()
     lux_malformed_packet_counter = 0;
     lux_packet_overrun_counter = 0;
     lux_bad_checksum_counter = 0;
-    lux_rx_while_tx_counter = 0;
+    lux_rx_interrupted_counter = 0;
+
+    lux_hal_enable_rx();
 
     codec_state=CODEC_START;
-
-    lux_hal_enable_rx_dma();
 }
 
+// Do any necessary work to handle incoming or outgoing data
+// Calls lux_fn_rx() when a packet has arrived.
+// Call this repeatedly in your application's main loop.
 void lux_codec()
 {
     uint8_t byte_read;
@@ -172,11 +207,11 @@ void lux_codec()
                 }
                 if(cobs_decode(byte_read,&decoded_byte))
                 {
-                    lux_destination[destination_pointer++]=decoded_byte;
+                    tmp_destination[destination_pointer++]=decoded_byte;
                 }
                 if(destination_pointer == LUX_DESTINATION_SIZE)
                 {
-                    if(lux_fn_match_destination())
+                    if(lux_fn_match_destination(tmp_destination))
                     {
                         if(lux_packet_in_memory)
                         {
@@ -185,6 +220,10 @@ void lux_codec()
                         }
                         else
                         {
+                            for(destination_pointer=0;destination_pointer<LUX_DESTINATION_SIZE;destination_pointer++)
+                            {
+                                lux_destination[destination_pointer]=tmp_destination[destination_pointer];
+                            }
                             goto read_payload;
                         }
                     }
@@ -192,6 +231,7 @@ void lux_codec()
                 }
             }
             break;
+
         read_payload:
         codec_state=READ_PAYLOAD;
         packet_pointer=0;
@@ -203,7 +243,7 @@ void lux_codec()
                 {
                     if(lux_hal_crc_ok())
                     {
-                        lux_packet_length=packet_pointer-LUX_CHECKSUM_SIZE;
+                        lux_packet_length=packet_pointer-LUX_HAL_CRC_SIZE;
                         lux_packet_in_memory=1;
                         lux_fn_rx();
                         goto read_destination;
@@ -256,37 +296,45 @@ void lux_codec()
                         if(!cobs_encode_and_send(lux_packet[packet_pointer++])) break;
                     }
                     lux_hal_write_crc(&lux_packet[packet_pointer]);
-                    encoder_state=WRITE_CHECKSUM;
-                case WRITE_CHECKSUM:
-                    while(packet_pointer<lux_packet_length+LUX_CHECKSUM_SIZE)
+                    encoder_state=WRITE_CRC;
+                case WRITE_CRC:
+                    while(packet_pointer<lux_packet_length+LUX_HAL_CRC_SIZE)
                     {
                         if(!cobs_encode_and_send(lux_packet[packet_pointer++])) break;
                     }
                     encoder_state=FLUSH;
-                    if(!cobs_encode_finish()) break; // flush COBS
+                    if(!cobs_encode_flush()) break; // flush COBS
                 case FLUSH:
-                    if(lux_hal_serial_ready())
+                    if(lux_hal_tx_flush())
                     {
-                        lux_hal_enable_rx_dma();
+                        lux_hal_disable_tx();
+                        lux_hal_enable_rx();
                         goto read_destination;
                     }
             }
             break;
 
         case ENCODER_STALLED:
-            if(serial_write_continuation()) goto encode;
+            if(write_continuation()) goto encode;
             break;
     }
 }
 
+// Call this function before altering lux_packet or lux_destination
 void lux_stop_rx()
 {
-    lux_hal_disable_rx_dma();
+    if(lux_hal_bytes_to_read())
+    {
+        lux_rx_interrupted_counter++;
+    }
+    lux_hal_disable_rx();
 }
 
+// Output the packet stored in lux_packet to lux_destination and re-enable the receiver
 void lux_start_tx()
 {
     codec_state=ENCODE;
     encoder_state=ENCODER_START;
+    lux_hal_enable_tx();
 }
 

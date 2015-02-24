@@ -39,7 +39,7 @@ void main()
     }
 }
 
-uint8_t lux_fn_match_destination()
+uint8_t lux_fn_match_destination(uint8_t* dest)
 {
     return 1;
 }
