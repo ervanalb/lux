@@ -28,26 +28,28 @@ extern uint8_t lux_destination[LUX_DESTINATION_SIZE];
 extern uint8_t lux_packet[];
 
 // The packet's length
-extern int lux_packet_length;
+extern uint16_t lux_packet_length;
 
 // Flag indicating whether a valid packet has been received
 // (must be cleared by application before another packet can be received)
 extern uint8_t lux_packet_in_memory;
 
 // Counters to keep track of bad things that could happen
-extern int lux_malformed_packet_counter;
-extern int lux_packet_overrun_counter;
-extern int lux_bad_checksum_counter;
-extern int lux_rx_interrupted_counter;
+extern uint32_t lux_good_packet_counter;
+extern uint32_t lux_malformed_packet_counter;
+extern uint32_t lux_packet_overrun_counter;
+extern uint32_t lux_bad_checksum_counter;
+extern uint32_t lux_rx_interrupted_counter;
 
-// Functions that need to be provided (in addition to lux_hal.h):
+// Functions that need to be provided:
 
 // This function is called to see if a packet destination matches this device.
-uint8_t lux_fn_match_destination(uint8_t* dest);
+extern uint8_t (*lux_fn_match_destination)(uint8_t* dest);
 
 // This function is called when a packet has been received.
 // It doesn't have to do anything, but if lux_packet_in_memory
 // isn't cleared in a timely fashion, you may drop packets
-void lux_fn_rx(); 
+extern void (*lux_fn_rx)(); 
+
 
 #endif

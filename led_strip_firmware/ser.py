@@ -34,48 +34,57 @@ def cobs_decode(data):
     return output[0:-1]
 
 def frame(destination,data):
-    packet=destination+data
+    packet=struct.pack('<I',destination)+data
     cs=binascii.crc32(packet) & ((1<<32)-1)
-    print hex(cs)
     packet += struct.pack('<I',cs)
-    print ','.join([hex(ord(c)) for c in packet])
-    print hex(binascii.crc32(packet) & ((1<<32)-1))
-    return cobs_encode(packet)+'\0'
+    return '\0'+cobs_encode(packet)+'\0'
 
 def unframe(packet):
     cs=binascii.crc32(packet) & ((1<<32)-1)
     if cs != 0x2144DF1C:
-        raise ValueError("BAD CRC: "+hex(cs))
-    return (packet[0:4],packet[4:-4])
+        pass
+        #raise ValueError("BAD CRC: "+hex(cs))
+    return (struct.unpack('<I',packet[0:4])[0],packet[4:-4])
 
 def send(pkt):
-    print len(pkt)
-    s.setRTS(False)
-    n=100
+    n=600
     for i in range(0,len(pkt),n):
         chunk=pkt[i:min(i+n,len(pkt))]
         s.write(chunk)
-    s.flush()
-    time.sleep(0.1)
+        s.flush()
+        time.sleep(0.002)
+
+f1=(chr(255)+chr(0)+chr(0))*50
+f2=(chr(0)+chr(255)+chr(0))*50
+f3=(chr(0)+chr(0)+chr(255))*50
+
+s.setRTS(False)
+
+try:
+    while True:
+        for buf in [f1,f2,f3]:
+            f=frame(0xFFFFFFFF,'\0'+buf)
+            send(f)
+finally:
     s.setRTS(True)
 
-f=frame('\0\0\0\0','\x01\x02\x03\x04\xFF\xFE\xFD\xFC'*(1024/8))
-print ','.join([hex(ord(c)) for c in f])
+"""
+print "waiting for rx..."
 
-send(f)
+b=''
+while True:
+    a=s.read()
+    if a=='\0':
+        break
+    b+=a
 
-#b=''
-#while True:
-#    a=s.read()
-#    if a=='\0':
-#        break
-#    b+=a
-
-#decoded=unframe(cobs_decode(b))
+decoded=unframe(cobs_decode(b))
 #print ','.join([hex(ord(c)) for c in b])
 #print ','.join([hex(ord(c)) for c in decoded[0]])
 #print ','.join([hex(ord(c)) for c in decoded[1]])
 
+print decoded[1]
+"""
 #while True:
     #raw_input()
 #    s.setRTS(False)

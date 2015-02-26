@@ -7,16 +7,21 @@
 // Useful buffers for the application
 uint8_t lux_destination[LUX_DESTINATION_SIZE];
 uint8_t lux_packet[LUX_PACKET_MEMORY_ALLOCATED_SIZE];
-int lux_packet_length;
+uint16_t lux_packet_length;
 
 // Counters for problematic data
-int lux_malformed_packet_counter;
-int lux_packet_overrun_counter;
-int lux_bad_checksum_counter;
-int lux_rx_interrupted_counter;
+uint32_t lux_good_packet_counter;
+uint32_t lux_malformed_packet_counter;
+uint32_t lux_packet_overrun_counter;
+uint32_t lux_bad_checksum_counter;
+uint32_t lux_rx_interrupted_counter;
 
 // Flag indicating whether there is currently a received packet in lux_packet
 uint8_t lux_packet_in_memory;
+
+// Callback function pointers
+uint8_t (*lux_fn_match_destination)(uint8_t* dest);
+void (*lux_fn_rx)(); 
 
 // Local variables
 
@@ -170,6 +175,7 @@ static uint8_t cobs_encode_flush()
 
 void lux_init()
 {
+    lux_good_packet_counter = 0;
     lux_malformed_packet_counter = 0;
     lux_packet_overrun_counter = 0;
     lux_bad_checksum_counter = 0;
@@ -181,7 +187,7 @@ void lux_init()
 }
 
 // Do any necessary work to handle incoming or outgoing data
-// Calls lux_fn_rx() when a packet has arrived.
+// Calls *lux_fn_rx() when a packet has arrived.
 // Call this repeatedly in your application's main loop.
 void lux_codec()
 {
@@ -200,18 +206,14 @@ void lux_codec()
             while(lux_hal_bytes_to_read())
             {
                 byte_read=lux_hal_read_byte();
-                if(!byte_read)
-                {
-                    lux_malformed_packet_counter++;
-                    goto read_destination;
-                }
+                if(!byte_read) goto read_destination; // Don't bother incrementing any counters because this is probably noise
                 if(cobs_decode(byte_read,&decoded_byte))
                 {
                     tmp_destination[destination_pointer++]=decoded_byte;
                 }
                 if(destination_pointer == LUX_DESTINATION_SIZE)
                 {
-                    if(lux_fn_match_destination(tmp_destination))
+                    if((*lux_fn_match_destination)(tmp_destination))
                     {
                         if(lux_packet_in_memory)
                         {
@@ -245,7 +247,9 @@ void lux_codec()
                     {
                         lux_packet_length=packet_pointer-LUX_HAL_CRC_SIZE;
                         lux_packet_in_memory=1;
-                        lux_fn_rx();
+                        lux_good_packet_counter++;
+                        (*lux_fn_rx)();
+                        if(codec_state == ENCODE) goto encode;
                         goto read_destination;
                     }
                     lux_bad_checksum_counter++;

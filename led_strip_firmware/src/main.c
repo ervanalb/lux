@@ -1,50 +1,73 @@
 #include "hal.h"
-#include "lux_hal.h"
 #include "lux.h"
+#include "strip.h"
 
 #include "stm32f0xx.h"
 
+const char id[]="WS2811 LED Strip";
+#define ID_SIZE (sizeof(id)-1)
+
+uint8_t match_destination(uint8_t* dest);
+void rx_packet();
+
+// First byte of packet is command
+
+#define CMD_FRAME 0x00
+
 void main()
 {
-    volatile int i=0;
-
     init();
+    strip_init();
     lux_init();
 
-/*
-    lux_stop_rx();
-
-    lux_destination[0]=0x00;
-    lux_destination[1]=0x00;
-    lux_destination[2]=0x00;
-    lux_destination[3]=0x00;
-
-    lux_packet[0]=0x01;
-    lux_packet[1]=0x02;
-    lux_packet[2]=0x03;
-    lux_packet[3]=0x04;
-
-    lux_packet_length=4;
-
-    lux_start_tx();
-*/
+    lux_fn_match_destination = &match_destination;
+    lux_fn_rx = &rx_packet;
 
     for(;;)
     {
         lux_codec();
-        if(lux_packet_in_memory)
-        {
-            i++;
-        }
     }
 }
 
-uint8_t lux_fn_match_destination(uint8_t* dest)
+uint8_t match_destination(uint8_t* dest)
 {
-    return 1;
+    return *(uint32_t*)dest == 0xFFFFFFFF;
 }
 
-void lux_fn_rx()
+static void clear_destination()
 {
-    return;
+    *(uint32_t*)lux_destination = 0;
+}
+
+static void send_id()
+{
+    int i;
+    lux_stop_rx();
+    clear_destination();
+    lux_packet_length = ID_SIZE;
+    for(i=0;i<ID_SIZE;i++)
+    {
+        lux_packet[i]=id[i];
+    }
+    lux_packet_in_memory = 0;
+    lux_start_tx();
+}
+
+void rx_packet()
+{
+    if(lux_packet_length == 0)
+    {
+        send_id();
+    }
+
+    switch(lux_packet[0])
+    {
+        case CMD_FRAME:
+            if(lux_packet_length != 3*STRIP_LENGTH+1) goto skip_frame;
+            if(!strip_ready()) goto skip_frame;
+            strip_write(&lux_packet[1]);
+        skip_frame:
+            lux_packet_in_memory=0;
+            break;
+    }
 }

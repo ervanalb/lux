@@ -16,7 +16,8 @@ void init()
 
     RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA | RCC_AHBPeriph_GPIOB |
         RCC_AHBPeriph_GPIOF | RCC_AHBPeriph_DMA1 | RCC_AHBPeriph_CRC, ENABLE);
-    RCC_APB2PeriphClockCmd(RCC_APB2Periph_USART1, ENABLE);
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_USART1 | RCC_APB2Periph_SPI1 | 
+        RCC_APB2Periph_SYSCFG, ENABLE);
 
     // LED
     led_off();
@@ -64,7 +65,7 @@ void init()
     USART_Cmd(USART1,ENABLE);
 
     // USART DMA
-    DMA_DeInit(DMA1_Channel3);
+    DMA_DeInit(DMA1_Channel5);
     DMA_InitStructure.DMA_BufferSize = SERIAL_BUFFER_SIZE;
     DMA_InitStructure.DMA_PeripheralDataSize = DMA_PeripheralDataSize_Byte;
     DMA_InitStructure.DMA_MemoryDataSize = DMA_MemoryDataSize_Byte;
@@ -76,7 +77,8 @@ void init()
     DMA_InitStructure.DMA_DIR = DMA_DIR_PeripheralSRC;
     DMA_InitStructure.DMA_Priority = DMA_Priority_Low;
     DMA_InitStructure.DMA_PeripheralBaseAddr = (uint32_t)&(USART1->RDR);
-    DMA_Init(DMA1_Channel3, &DMA_InitStructure);
+    DMA_Init(DMA1_Channel5, &DMA_InitStructure);
+    SYSCFG_DMAChannelRemapConfig(SYSCFG_DMARemap_USART1Rx,ENABLE);
 
     DMA_DeInit(DMA1_Channel2);
     tx_DMA_InitStructure.DMA_PeripheralDataSize = DMA_PeripheralDataSize_Byte;
@@ -146,14 +148,14 @@ static uint8_t transfer_in_progress;
 void lux_hal_enable_rx()
 {
     serial_read_ptr=0;
-    DMA_SetCurrDataCounter(DMA1_Channel3, SERIAL_BUFFER_SIZE);
-    DMA_Cmd(DMA1_Channel3, ENABLE);
+    DMA_SetCurrDataCounter(DMA1_Channel5, SERIAL_BUFFER_SIZE);
+    DMA_Cmd(DMA1_Channel5, ENABLE);
 }
 
 // Disables RX DMA request
 void lux_hal_disable_rx()
 {
-    DMA_Cmd(DMA1_Channel3, DISABLE);
+    DMA_Cmd(DMA1_Channel5, DISABLE);
 }
 
 // Enable the driver on the RS-485 tranceiver
@@ -172,7 +174,7 @@ void lux_hal_disable_tx()
 // Assume no overflows.
 int16_t lux_hal_bytes_to_read()
 {
-    int16_t remaining = SERIAL_BUFFER_SIZE - DMA_GetCurrDataCounter(DMA1_Channel3) - serial_read_ptr;
+    int16_t remaining = SERIAL_BUFFER_SIZE - DMA_GetCurrDataCounter(DMA1_Channel5) - serial_read_ptr;
     if(remaining < 0) remaining += SERIAL_BUFFER_SIZE;
     return remaining;
 }
