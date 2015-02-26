@@ -47,12 +47,8 @@ def unframe(packet):
     return (struct.unpack('<I',packet[0:4])[0],packet[4:-4])
 
 def send(pkt):
-    n=600
-    for i in range(0,len(pkt),n):
-        chunk=pkt[i:min(i+n,len(pkt))]
-        s.write(chunk)
-        s.flush()
-        time.sleep(0.002)
+    s.write(pkt)
+    s.flush()
 
 f1=(chr(255)+chr(0)+chr(0))*50
 f2=(chr(0)+chr(255)+chr(0))*50
@@ -60,11 +56,18 @@ f3=(chr(0)+chr(0)+chr(255))*50
 
 s.setRTS(False)
 
+n=0
 try:
+    st=time.time()
     while True:
         for buf in [f1,f2,f3]:
             f=frame(0xFFFFFFFF,'\0'+buf)
             send(f)
+            time.sleep(0.01)
+            n+=1
+        t=time.time()-st
+        print n/t
+
 finally:
     s.setRTS(True)
 
