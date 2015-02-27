@@ -54,16 +54,21 @@ f1=(chr(255)+chr(0)+chr(0))*50
 f2=(chr(0)+chr(255)+chr(0))*50
 f3=(chr(0)+chr(0)+chr(255))*50
 
+b1=chr(0b01010101)*15
+b2=chr(0b10101010)*15
+
 s.setRTS(False)
 
 n=0
 try:
     st=time.time()
-    while True:
+#    while True:
+    for i in [1]:
         for buf in [f1,f2,f3]:
+        #for buf in [b1,b2]:
             f=frame(0xFFFFFFFF,'\0'+buf)
             send(f)
-            time.sleep(0.01)
+            time.sleep(1)
             n+=1
         t=time.time()-st
         print n/t

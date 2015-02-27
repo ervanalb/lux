@@ -16,9 +16,8 @@ void init()
 
     RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA | RCC_AHBPeriph_GPIOB |
         RCC_AHBPeriph_GPIOF | RCC_AHBPeriph_DMA1 | RCC_AHBPeriph_CRC, ENABLE);
-    RCC_APB2PeriphClockCmd(RCC_APB2Periph_USART1 | RCC_APB2Periph_SPI1 | 
-        RCC_APB2Periph_SYSCFG, ENABLE);
-
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_USART1 | RCC_APB2Periph_SYSCFG, ENABLE);
+    
     // LED
     led_off();
     GPIO_InitStruct.GPIO_Pin = GPIO_Pin_1;

@@ -15,9 +15,10 @@ INC += -Ilib/STM32F0xx_StdPeriph_Driver/inc
 
 # Assembler, compiler, and linker flags
 AFLAGS  = -mlittle-endian -mthumb -mcpu=cortex-m0
-CFLAGS  = $(AFLAGS) -g -O0 $(INC) -std=c99 -DUSE_STDPERIPH_DRIVER -Wall
+CFLAGS  = $(AFLAGS) -g -O3 $(INC) -std=c99 -DUSE_STDPERIPH_DRIVER -Wall
 CFLAGS += -DSTM32F031
 CFLAGS += -DUSE_STDPERIPH_DRIVER
+CFLAGS += -DWS2811
 CFLAGS += -fdata-sections -ffunction-sections
 LFLAGS  = $(CFLAGS) -nostartfiles -Tflash.ld -Wl,-Map=main.map -Wl,--gc-sections
 

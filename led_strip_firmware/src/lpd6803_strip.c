@@ -1,3 +1,5 @@
+#ifdef LPD6803
+
 #include "strip.h"
 #include "stm32f0xx.h"
 
@@ -10,6 +12,8 @@ void strip_init()
     GPIO_InitTypeDef GPIO_InitStruct;
     SPI_InitTypeDef SPI_InitStruct;
     DMA_InitTypeDef DMA_InitStructure;
+
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_SPI1, ENABLE);
 
     // SPI Out to Strip
     GPIO_InitStruct.GPIO_Pin = GPIO_Pin_3 | GPIO_Pin_5;
@@ -89,3 +93,4 @@ uint8_t strip_ready()
     return DMA_GetFlagStatus(DMA1_FLAG_TC3);
 }
 
+#endif
