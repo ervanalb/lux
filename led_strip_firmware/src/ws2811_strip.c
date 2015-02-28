@@ -54,7 +54,7 @@ void strip_init()
     TIM_CtrlPWMOutputs(TIM3, ENABLE);
     TIM_Cmd(TIM3, ENABLE);
 
-    // DMA - SPI
+    // DMA - TIM3_UP
     DMA_DeInit(DMA1_Channel3);
     DMA_InitStructure.DMA_PeripheralBaseAddr = (uint32_t)(&(TIM3->CCR2));
     DMA_InitStructure.DMA_MemoryBaseAddr = (uint32_t)pulse_buffer;
