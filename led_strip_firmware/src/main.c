@@ -53,6 +53,8 @@ void main()
     DMA_ClearFlag(DMA1_FLAG_HT3);
     DMA_SetCurrDataCounter(DMA1_Channel3,PULSE_BUFFER_LENGTH);
     DMA_Cmd(DMA1_Channel3, ENABLE);
+
+    for(;;);
 }
 
 void DMA1_Channel2_3_IRQHandler(void)
