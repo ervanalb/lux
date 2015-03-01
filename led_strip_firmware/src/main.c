@@ -6,16 +6,18 @@
 
 uint8_t pulse_buffer[PULSE_BUFFER_LENGTH];
 
-void main()
+int main()
 {
     DMA_InitTypeDef DMA_InitStructure;
     TIM_TimeBaseInitTypeDef TIM_TimeBaseInitStruct;
+    TIM_OCInitTypeDef TIM_OCInitStruct;
     NVIC_InitTypeDef NVIC_InitStruct;
 
     RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1, ENABLE);
     RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM3, ENABLE);
 
     // TIM3
+    TIM_DeInit(TIM3);
     TIM_TimeBaseInitStruct.TIM_Prescaler = 0;
     TIM_TimeBaseInitStruct.TIM_CounterMode = TIM_CounterMode_Up;
     TIM_TimeBaseInitStruct.TIM_Period = PULSE_PERIOD;
@@ -41,16 +43,25 @@ void main()
     DMA_Init(DMA1_Channel3, &DMA_InitStructure);
     TIM_DMACmd(TIM3, TIM_DMA_Update, ENABLE);
 
+    DMA_ITConfig(DMA1_Channel3, DMA_IT_TC | DMA_IT_HT, ENABLE);
+
     // NVIC
     NVIC_InitStruct.NVIC_IRQChannel = DMA1_Channel2_3_IRQn;
     NVIC_InitStruct.NVIC_IRQChannelPriority = 0;
     NVIC_InitStruct.NVIC_IRQChannelCmd = ENABLE;
     NVIC_Init(&NVIC_InitStruct);
 
-    DMA_ITConfig(DMA1_Channel3, DMA_IT_TC | DMA_IT_HT, ENABLE);
+    DMA_ClearFlag(DMA1_FLAG_GL1);
+    DMA_ClearFlag(DMA1_FLAG_GL2);
+    DMA_ClearFlag(DMA1_FLAG_GL3);
+    DMA_ClearFlag(DMA1_FLAG_GL4);
+    DMA_ClearFlag(DMA1_FLAG_GL5);
+    DMA_ClearFlag(DMA1_FLAG_GL6);
+    DMA_ClearFlag(DMA1_FLAG_GL7);
 
     DMA_ClearFlag(DMA1_FLAG_TC3);
     DMA_ClearFlag(DMA1_FLAG_HT3);
+
     DMA_SetCurrDataCounter(DMA1_Channel3,PULSE_BUFFER_LENGTH);
     DMA_Cmd(DMA1_Channel3, ENABLE);
 
