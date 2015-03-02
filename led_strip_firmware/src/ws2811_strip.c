@@ -147,7 +147,7 @@ void strip_write(uint8_t* rgb_data)
 
 uint8_t strip_ready()
 {
-    return !!(DMA1_Channel3->CCR & DMA_CCR_EN);
+    return !(DMA1_Channel3->CCR & DMA_CCR_EN);
 }
 
 void DMA1_Channel2_3_IRQHandler(void)
