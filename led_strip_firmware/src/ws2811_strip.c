@@ -6,6 +6,7 @@
 #define PULSE_PERIOD 61
 #define PULSE_WIDTH_0 18
 #define PULSE_WIDTH_1 35
+#define RESET_CYCLES 40
 
 #define STRIP_MEMORY_LENGTH (STRIP_LENGTH*3)
 
@@ -80,8 +81,49 @@ void strip_init()
 }
 
 static uint8_t* data_pointer;
-static uint16_t bit_counter;
-//static uint16_t byte_counter;
+static uint16_t byte_counter;
+static uint8_t reset_counter;
+
+static void fill_dma_buffer(uint8_t* start, uint16_t len)
+{
+    uint16_t i;
+    for(i=0;i<len;i+=8)
+    {
+        if(byte_counter)
+        {
+            if(*data_pointer & 0x80) *start++ = PULSE_WIDTH_1; else *start++ = PULSE_WIDTH_0;
+            if(*data_pointer & 0x40) *start++ = PULSE_WIDTH_1; else *start++ = PULSE_WIDTH_0;
+            if(*data_pointer & 0x20) *start++ = PULSE_WIDTH_1; else *start++ = PULSE_WIDTH_0;
+            if(*data_pointer & 0x10) *start++ = PULSE_WIDTH_1; else *start++ = PULSE_WIDTH_0;
+            if(*data_pointer & 0x08) *start++ = PULSE_WIDTH_1; else *start++ = PULSE_WIDTH_0;
+            if(*data_pointer & 0x04) *start++ = PULSE_WIDTH_1; else *start++ = PULSE_WIDTH_0;
+            if(*data_pointer & 0x02) *start++ = PULSE_WIDTH_1; else *start++ = PULSE_WIDTH_0;
+            if(*data_pointer & 0x01) *start++ = PULSE_WIDTH_1; else *start++ = PULSE_WIDTH_0;
+            data_pointer++;
+            byte_counter--;
+        }
+        else
+        {
+            *start++ = 0;
+            *start++ = 0;
+            *start++ = 0;
+            *start++ = 0;
+            *start++ = 0;
+            *start++ = 0;
+            *start++ = 0;
+            *start++ = 0;
+            if(!reset_counter)
+            {
+                // Disable DMA
+                DMA1_Channel3->CCR &= (uint16_t)(~DMA_CCR_EN);
+            }
+            else
+            {
+                reset_counter--;
+            }
+        }
+    }
+}
 
 void strip_write(uint8_t* rgb_data)
 {
@@ -92,18 +134,10 @@ void strip_write(uint8_t* rgb_data)
         strip_memory[i]=rgb_data[i];
     }
     data_pointer=strip_memory;
-    bit_counter=STRIP_MEMORY_LENGTH*8;
+    byte_counter=STRIP_MEMORY_LENGTH;
+    reset_counter=RESET_CYCLES;
 
-    //byte_counter=STRIP_MEMORY_LENGTH;
-    //TIM3->CNT = 0;
-    //TIM3->SR = ~TIM_FLAG_Update;
-    //TIM_ITConfig(TIM3, TIM_IT_Update, ENABLE);
-
-    for(int i=0;i<PULSE_BUFFER_LENGTH;i+=2)
-    {
-        pulse_buffer[i]=PULSE_WIDTH_0;
-        pulse_buffer[i+1]=PULSE_WIDTH_1;
-    }
+    fill_dma_buffer(pulse_buffer,PULSE_BUFFER_LENGTH);
 
     DMA_ClearFlag(DMA1_FLAG_TC3);
     DMA_ClearFlag(DMA1_FLAG_HT3);
@@ -113,68 +147,20 @@ void strip_write(uint8_t* rgb_data)
 
 uint8_t strip_ready()
 {
-    return 1;
+    return !!(DMA1_Channel3->CCR & DMA_CCR_EN);
 }
-
-/*
-void TIM3_IRQHandler(void)
-{
-    if(!bit_counter)
-    {
-        TIM3->CCR2 = 0;
-        TIM_ITConfig(TIM3, TIM_IT_Update, DISABLE);
-        return;
-    }
-
-    bit_counter--;
-
-    TIM3->CCR2 = PULSE_WIDTH_0;
-    if(data_pointer[bit_counter>>3] & 0x80)
-    {
-        TIM3->CCR2 = PULSE_WIDTH_1;
-    }
-    *data_pointer <<= 1;
-
-    TIM3->SR = ~TIM_FLAG_Update;
-}
-*/
-/*
-void TIM3_IRQHandler(void)
-{
-    if(!--bit_counter)
-    {
-        if(!--byte_counter)
-        {
-            TIM3->CCR2 = 0;
-            TIM_ITConfig(TIM3, TIM_IT_Update, DISABLE);
-            return;
-        }
-        data_pointer++;
-        bit_counter=8;
-    }
-
-    TIM3->CCR2 = PULSE_WIDTH_0;
-    if(*data_pointer & 1)
-    {
-        TIM3->CCR2 = PULSE_WIDTH_1;
-    }
-    *data_pointer >>= 1;
-
-    TIM3->SR = ~TIM_FLAG_Update;
-}
-*/
 
 void DMA1_Channel2_3_IRQHandler(void)
 {
-    DMA_Cmd(DMA1_Channel3, DISABLE);
     if(DMA1->ISR & DMA1_IT_HT3)
     {
+        fill_dma_buffer(pulse_buffer,PULSE_BUFFER_LENGTH/2);
         DMA1->IFCR = DMA1_IT_HT3;
     }
 
     if(DMA1->ISR & DMA1_IT_TC3)
     {
-        
+        fill_dma_buffer(pulse_buffer+PULSE_BUFFER_LENGTH/2,PULSE_BUFFER_LENGTH/2);
         DMA1->IFCR = DMA1_IT_TC3;
     }
 }
