@@ -53,6 +53,7 @@ void strip_init()
 
     TIM_OC2Init(TIM3, &TIM_OCInitStruct);
     TIM_CtrlPWMOutputs(TIM3, ENABLE);
+    TIM_DMACmd(TIM3, TIM_DMA_Update, ENABLE);
     TIM_Cmd(TIM3, ENABLE);
 
     // DMA - TIM3_UP
@@ -69,7 +70,6 @@ void strip_init()
     DMA_InitStructure.DMA_Priority = DMA_Priority_High;
     DMA_InitStructure.DMA_M2M = DMA_M2M_Disable;
     DMA_Init(DMA1_Channel3, &DMA_InitStructure);
-    TIM_DMACmd(TIM3, TIM_DMA_Update, ENABLE);
 
     // NVIC
     NVIC_InitStruct.NVIC_IRQChannel = DMA1_Channel2_3_IRQn;
@@ -91,14 +91,14 @@ static void fill_dma_buffer(uint8_t* start, uint16_t len)
     {
         if(byte_counter)
         {
-            if(*data_pointer & 0x80) *start++ = PULSE_WIDTH_1; else *start++ = PULSE_WIDTH_0;
-            if(*data_pointer & 0x40) *start++ = PULSE_WIDTH_1; else *start++ = PULSE_WIDTH_0;
-            if(*data_pointer & 0x20) *start++ = PULSE_WIDTH_1; else *start++ = PULSE_WIDTH_0;
-            if(*data_pointer & 0x10) *start++ = PULSE_WIDTH_1; else *start++ = PULSE_WIDTH_0;
-            if(*data_pointer & 0x08) *start++ = PULSE_WIDTH_1; else *start++ = PULSE_WIDTH_0;
-            if(*data_pointer & 0x04) *start++ = PULSE_WIDTH_1; else *start++ = PULSE_WIDTH_0;
-            if(*data_pointer & 0x02) *start++ = PULSE_WIDTH_1; else *start++ = PULSE_WIDTH_0;
-            if(*data_pointer & 0x01) *start++ = PULSE_WIDTH_1; else *start++ = PULSE_WIDTH_0;
+            *start++ = (*data_pointer & 0x80) ? PULSE_WIDTH_1 : PULSE_WIDTH_0;
+            *start++ = (*data_pointer & 0x40) ? PULSE_WIDTH_1 : PULSE_WIDTH_0;
+            *start++ = (*data_pointer & 0x20) ? PULSE_WIDTH_1 : PULSE_WIDTH_0;
+            *start++ = (*data_pointer & 0x10) ? PULSE_WIDTH_1 : PULSE_WIDTH_0;
+            *start++ = (*data_pointer & 0x08) ? PULSE_WIDTH_1 : PULSE_WIDTH_0;
+            *start++ = (*data_pointer & 0x04) ? PULSE_WIDTH_1 : PULSE_WIDTH_0;
+            *start++ = (*data_pointer & 0x02) ? PULSE_WIDTH_1 : PULSE_WIDTH_0;
+            *start++ = (*data_pointer & 0x01) ? PULSE_WIDTH_1 : PULSE_WIDTH_0;
             data_pointer++;
             byte_counter--;
         }
