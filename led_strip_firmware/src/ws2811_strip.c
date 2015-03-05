@@ -137,7 +137,10 @@ void strip_write(uint8_t* rgb_data)
     byte_counter=STRIP_MEMORY_LENGTH;
     reset_counter=RESET_CYCLES;
 
-    fill_dma_buffer(pulse_buffer,PULSE_BUFFER_LENGTH);
+    for(i=0;i<PULSE_BUFFER_LENGTH;i++)
+    {
+        pulse_buffer[i] = 0;
+    }
 
     DMA_ClearFlag(DMA1_FLAG_TC3);
     DMA_ClearFlag(DMA1_FLAG_HT3);
