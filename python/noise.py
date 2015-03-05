@@ -36,7 +36,7 @@ class Perlin2D:
             x=self.mod(x,xp)
         if yp is not None:
             y=self.mod(y,yp)
-        return self.lut[self.mod(x + self.p[y], self.LKUP_SIZE)]
+        return self.lut[self.mod(x + self.p[self.mod(y, self.LKUP_SIZE)], self.LKUP_SIZE)]
 
     def __call__(self,(px,py)):
         ns = self.neighbors((px,py))
