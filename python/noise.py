@@ -52,7 +52,7 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
     import time
 
-    n2d=Perlin2D(period=(10,3))
+    n2d=Perlin2D(period=(20,None))
 
     def curve(t):
         return [n2d((float(i)/20,t)) for i in range(0,200)]
