@@ -47,6 +47,60 @@ class Perlin2D:
 
         return sum(map(get_contribution,ns))
 
+class Perlin3D(Perlin2D):
+    LKUP_SIZE = 1024
+
+    @staticmethod
+    def mod(x,y):
+        return ((x % y) + x) % y
+
+    @staticmethod
+    def neighbors((x,y,z)):
+        x=int(x)
+        y=int(y)
+        z=int(z)
+        return ((x,y,z),(x+1,y,z),(x+1,y+1,z),(x,y+1,z),(x,y,z+1),(x+1,y,z+1),(x+1,y+1,z+1),(x,y+1,z+1))
+
+    def __init__(self,period=(None,None,None),seed=None):
+        self.period=period
+        self.p=range(self.LKUP_SIZE)
+        random.seed(seed)
+        random.shuffle(self.p)
+
+        def random_vector():
+            while True:
+                x=random.random()
+                y=random.random()
+                z=random.random()
+
+                if x*x+y*y+z*z < 1:
+                    norm = math.sqrt(x*x + y*y + z*z)
+                    return (x/norm, y/norm, z/norm)
+
+        self.lut = [random_vector() for i in range(self.LKUP_SIZE)]
+
+    def gradient(self,(x,y,z)):
+        xp,yp,zp=self.period
+        if xp is not None:
+            x=self.mod(x,xp)
+        if yp is not None:
+            y=self.mod(y,yp)
+        if zp is not None:
+            z=self.mod(z,zp)
+        return self.lut[self.mod(x + self.p[self.mod(y + self.p[self.mod(z, self.LKUP_SIZE)], self.LKUP_SIZE)], self.LKUP_SIZE)]
+
+    def __call__(self,(px,py,pz)):
+        ns = self.neighbors((px,py,pz))
+
+        def get_contribution((qx,qy,qz)):
+            (gx,gy,gz) = self.gradient((qx,qy,qz))
+            return (gx * (px - qx) + gy * (py - qy) + gz * (pz - qz)) \
+                * self.cross_fade(1 - abs(px - qx)) \
+                * self.cross_fade(1 - abs(py - qy)) \
+                * self.cross_fade(1 - abs(pz - qz))
+
+        return sum(map(get_contribution,ns))
+
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt

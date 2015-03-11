@@ -31,7 +31,7 @@ void main()
 
 uint8_t match_destination(uint8_t* dest)
 {
-    return *(uint32_t*)dest == 0xFFFFFFFF;
+    return !!(*(uint32_t*)dest & 0x01);
 }
 
 static void clear_destination()

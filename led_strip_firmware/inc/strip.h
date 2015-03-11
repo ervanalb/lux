@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#define STRIP_LENGTH 194
+#define STRIP_LENGTH 50
 
 void strip_init();
 void strip_write(uint8_t* rgb_data);
