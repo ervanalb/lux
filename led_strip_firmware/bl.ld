@@ -2,7 +2,7 @@ ENTRY(Reset_Handler)
 
 MEMORY
 {
-  FLASH (rx) : ORIGIN = 0x08000000, LENGTH = 32K
+  FLASH (rx) : ORIGIN = 0x08007000, LENGTH = 4K
   RAM (rwx)  : ORIGIN = 0x20000000, LENGTH = 4K
 }
 _estack = ORIGIN(RAM) + LENGTH(RAM);
@@ -10,6 +10,7 @@ _estack = ORIGIN(RAM) + LENGTH(RAM);
 SECTIONS {
   /* Interrupt vector table at the beginning of flash */
   .isr_vector ORIGIN(FLASH) : {
+    _siisr = .;
     KEEP(*(.isr_vector))
     . = ALIGN(4);
   } >FLASH
@@ -24,6 +25,14 @@ SECTIONS {
   } >FLASH
   /* The data section gets a VMA in RAM but an LMA in flash */
   _sidata = .;
+
+  .padding ORIGIN(RAM) : {
+    _sisr = .;
+    . += SIZEOF(.isr_vector);
+    _eisr = .;
+    . =  ALIGN(4);
+  } >RAM
+
   .data : AT ( _sidata ) {
     . = ALIGN(4);
     _sdata = .;

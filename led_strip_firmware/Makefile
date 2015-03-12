@@ -1,17 +1,21 @@
 # Makefile for STM32F373 using cmsis and GNU toolchain.
 
 # Files to include
-C_SRC  = $(wildcard src/*.c)
-C_SRC += $(wildcard lib/STM32F0xx_StdPeriph_Driver/src/*.c)
-C_INC  = $(wildcard inc/*.h)
+APP_C_SRC  = $(wildcard app/src/*.c)
+BL_C_SRC   = $(wildcard bl/src/*.c)
+C_SRC  = $(wildcard lib/STM32F0xx_StdPeriph_Driver/src/*.c)
+C_SRC += $(wildcard lib/lux/src/*.c)
 
-OBJECTS = $(patsubst %.c,%.o,$(C_SRC)) src/startup.o
+APP_OBJECTS = $(patsubst %.c,%.o,$(C_SRC) $(APP_C_SRC)) app/src/startup.o
+BL_OBJECTS  = $(patsubst %.c,%.o,$(C_SRC) $(BL_C_SRC)) bl/src/startup.o
 
 LIBRARIES = 
 
-INC  = -Iinc
+INC  = -Ilib/lux/inc -Iinc
 INC += -Ilib/CMSIS/Include -Ilib/CMSIS/Device/ST/STM32F0xx/Include
 INC += -Ilib/STM32F0xx_StdPeriph_Driver/inc
+APP_INC = -Iapp/inc
+BL_INC = -Ibl/inc
 
 # Assembler, compiler, and linker flags
 AFLAGS  = -mlittle-endian -mthumb -mcpu=cortex-m0
@@ -20,20 +24,37 @@ CFLAGS += -DSTM32F031
 CFLAGS += -DUSE_STDPERIPH_DRIVER
 CFLAGS += -DWS2811
 CFLAGS += -fdata-sections -ffunction-sections
-LFLAGS  = $(CFLAGS) -nostartfiles -Tflash.ld -Wl,-Map=main.map -Wl,--gc-sections
+LFLAGS  = $(CFLAGS) -nostartfiles -Wl,--gc-sections
 
 # Targets
-all: main.bin
+all: main.hex
 clean:
-	-rm -f $(OBJECTS) *.elf *.bin *.map
-main.bin: main.elf
-	arm-none-eabi-objcopy -O binary main.elf main.bin
-main.elf: $(OBJECTS)
-	arm-none-eabi-gcc $(LFLAGS) -o main.elf $(OBJECTS) $(LIBRARIES)
-src/startup.o: src/startup.s
-	arm-none-eabi-as $(AFLAGS) src/startup.s -o src/startup.o
-%.o: %.c $(C_INC)
+	-rm -f $(APP_OBJECTS) $(BL_OBJECTS) *.elf *.bin *.map *.hex
+main.hex: app.hex bl.hex
+	cat app.hex bl.hex > combined.hex
+app.hex: app.elf
+	arm-none-eabi-objcopy app.elf -O ihex app.hex
+bl.hex: bl.elf
+	arm-none-eabi-objcopy bl.elf -O ihex bl.hex
+app.bin: app.elf
+	arm-none-eabi-objcopy -O binary app.elf app.bin
+bl.bin: bl.elf
+	arm-none-eabi-objcopy -O binary bl.elf bl.bin
+app.elf: $(APP_OBJECTS)
+	arm-none-eabi-gcc $(LFLAGS) -Tapp.ld -Wl,-Map=app.map -o app.elf $(APP_OBJECTS) $(LIBRARIES)
+bl.elf: $(BL_OBJECTS)
+	arm-none-eabi-gcc $(LFLAGS) -Tbl.ld -Wl,-Map=bl.map -o bl.elf $(BL_OBJECTS) $(LIBRARIES)
+app/src/startup.o: app/src/startup.s
+	arm-none-eabi-as $(AFLAGS) app/src/startup.s -o app/src/startup.o
+bl/src/startup.o: bl/src/startup.s
+	arm-none-eabi-as $(AFLAGS) bl/src/startup.s -o bl/src/startup.o
+lib/%.o: lib/%.c
+	echo wersers
 	arm-none-eabi-gcc $(CFLAGS) -c -o $@ $<
+app/%.o: app/%.c
+	arm-none-eabi-gcc $(CFLAGS) $(APP_INC) -c -o $@ $<
+bl/%.o: bl/%.c
+	arm-none-eabi-gcc $(CFLAGS) $(BL_INC) -c -o $@ $<
 gdb: main.elf
 	arm-none-eabi-gdb -x init.gdb
 load: main.elf
@@ -42,3 +63,4 @@ loadquit: main.elf
 	arm-none-eabi-gdb -batch -x init.gdb -ex load -ex kill -ex quit
 stlink:
 	st-util -p 4244
+

@@ -1,6 +1,0 @@
-*.o
-*.elf
-*.hex
-*.bin
-*.map
-led_strip_firmware/lib
