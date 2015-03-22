@@ -129,6 +129,14 @@ uint8_t button()
     return !GPIO_ReadInputDataBit(GPIOB,GPIO_Pin_7);
 }
 
+void bootloader()
+{
+    __disable_irq();
+    DMA_Cmd(DMA1_Channel5, DISABLE);
+    DMA_Cmd(DMA1_Channel5, DISABLE);
+    BranchToBootloader();
+}
+
 // LUX HAL
 
 // Pointer to serial buffer where data is being read in RX mode (lags DMA counter)
@@ -303,3 +311,4 @@ void lux_hal_write_crc(uint8_t* ptr)
         ptr[i]=((uint8_t*)&crc)[i];
     }
 }
+
