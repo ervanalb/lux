@@ -69,4 +69,9 @@ loadquit_bl: bl.elf
 	arm-none-eabi-gdb bl.elf -batch -x init.gdb -ex load -ex kill -ex quit
 stlink:
 	st-util -p 4244
+stload: app.bin
+	st-flash write app.bin 0x8000000
+sterase:
+	st-flash erase
+
 

@@ -25,14 +25,15 @@ class LuxBus:
     def cobs_decode(data):
         output=''
         ptr=0
-        while ptr < len(data):
+        #while ptr < len(data):
+        while data[ptr] != '\0':
             ctr=ord(data[ptr])
-            if ptr+ctr > len(data):
-                raise ValueError("COBS decoding failed")
+            if ptr+ctr >= len(data):
+                raise ValueError("COBS decoding failed", repr(data))
             output+=data[ptr+1:ptr+ctr]+'\0'
             ptr+=ctr
-        if output[-1]!='\0':
-            raise ValueError("COBS decoding failed")
+        if ptr != len(data) - 1:
+            raise ValueError("COBS decoding failed", repr(data))
         return output[0:-1]
 
     @classmethod
@@ -46,26 +47,41 @@ class LuxBus:
     def unframe(cls, packet):
         packet = cls.cobs_decode(packet)
         cs=binascii.crc32(packet) & ((1<<32)-1)
-        if cs != 0x2144DF1C:
-            raise ValueError("BAD CRC: "+hex(cs))
+        #if cs != 0x2144DF1C:
+        if cs != 0x2F562d5: # 0xc8398d30
+            raise ValueError("BAD CRC: "+hex(cs), repr(packet))
         return (struct.unpack('<I',packet[0:4])[0],packet[4:-4])
 
     def __init__(self,serial_port):
         self.s=None
         self.s=serial.Serial(serial_port,self.BAUD)
-        self.s.setRTS(False)
-        # TODO implement data reception
+        self.s.timeout = 1 # 1 second timeout on reads
+        self.s.setRTS(True)
+        self.rx = ""
 
     def __del__(self):
         if self.s:
             self.s.setRTS(True)
 
+    def read(self):
+        self.rx += self.s.read(size=self.s.inWaiting())
+        if '\0' in self.rx:
+            frame, _null, self.rx = self.rx.partition('\0')
+            return self.unframe(frame + '\0')
+        return None
+
     def send_packet(self,destination,data):
+        self.s.setRTS(False)
         self.s.write(self.frame(destination, data))
         self.s.flush()
+        self.s.setRTS(True)
 
     def ping(self,destination):
         raise NotImplementedError
+
+    def send_command(self, destination, cmd, data):
+        frame = ''.join(map(chr, [cmd] + data))
+        self.send_packet(destination, frame)
 
 class LEDStrip:
     def __init__(self,bus,address,length):
@@ -77,6 +93,16 @@ class LEDStrip:
         assert len(pixels) == self.length
         data = '\0' + ''.join([chr(r) + chr(g) + chr(b) for (r,g,b) in pixels])
         self.bus.send_packet(self.address, data)
+
+    def set_led(self, state):
+        self.bus.send_command(self.address, 2, [1 if state else 0])
+
+    def get_button(self):
+        self.bus.send_command(self.address, 3, [])
+        time.sleep(0.3)
+        return self.bus.read()[1]
+
+
 
 if __name__ == '__main__':
     l = 194
