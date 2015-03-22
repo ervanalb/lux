@@ -114,9 +114,9 @@ uint8_t button()
     return !GPIO_ReadInputDataBit(GPIOB,GPIO_Pin_7);
 }
 
-void bootloader()
+void reset()
 {
-    
+    NVIC_SystemReset();
 }
 
 // LUX HAL

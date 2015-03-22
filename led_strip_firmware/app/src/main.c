@@ -31,7 +31,6 @@ char button_pressed;
 void main()
 {
     init();
-    bootloader(); // XXX REMOVE ME
 
     strip_init();
     lux_init();
