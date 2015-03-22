@@ -1,6 +1,8 @@
 #include "hal.h"
 #include "lux.h"
 #include "strip.h"
+#include "config.h"
+#include "string.h"
 
 #include "stm32f0xx.h"
 
@@ -8,10 +10,6 @@
 
 const char id[]="WS2811 LED Strip";
 #define ID_SIZE (sizeof(id)-1)
-
-#define UNICAST_ADDRESS_COUNT 32
-uint32_t unicast_addresses[UNICAST_ADDRESS_COUNT];
-uint32_t multicast_address_mask;
 
 uint8_t match_destination(uint8_t* dest);
 void rx_packet();
@@ -25,6 +23,8 @@ enum lux_command {
     CMD_BUTTON,
     CMD_SETADDR,
     CMD_BOOTLOADER,
+    CMD_SETUSERDATA,
+    CMD_GETUSERDATA,
 };
 
 // Has the button been pressed since the last query?
@@ -35,14 +35,13 @@ void main()
     init();
     strip_init();
     lux_init();
+    read_config_from_flash();
 
     lux_fn_match_destination = &match_destination;
     lux_fn_rx = &rx_packet;
 
     // Special Init
     button_pressed = 0;
-    multicast_address_mask = 0x00000000;
-    memset(unicast_addresses, 0xFF, sizeof(unicast_addresses));
 
     for(;;)
     {
@@ -55,13 +54,13 @@ uint8_t match_destination(uint8_t* dest)
 {
     //return !!(*(uint32_t*)dest & 0x01);
     uint32_t addr = *(uint32_t *)dest;
-    if(addr & multicast_address_mask)
+    if((addr & cfg.multicast_address_mask) == cfg.multicast_address)
         return 1;
     for(int i = 0; i < UNICAST_ADDRESS_COUNT; i++){
-        if(addr == unicast_addresses[i])
+        if(addr == cfg.unicast_addresses[i])
             return 1;
     }
-    return 0;
+    return addr == 0xFFFFFFFF;
 }
 
 static void clear_destination()
@@ -124,15 +123,33 @@ void rx_packet()
             lux_start_tx();
         break;
         case CMD_SETADDR:
-            if(lux_packet_length == 4*(UNICAST_ADDRESS_COUNT+1)){
-                multicast_address_mask = *(uint32_t *) lux_packet;
-                memcpy(unicast_addresses, lux_packet+4, 4*UNICAST_ADDRESS_COUNT);
+            if(lux_packet_length == 4*(UNICAST_ADDRESS_COUNT+2)){
+                cfg.multicast_address = *(uint32_t *) lux_packet;
+                cfg.multicast_address_mask = *(uint32_t *) lux_packet;
+                memcpy(cfg.unicast_addresses, lux_packet+8, 4*UNICAST_ADDRESS_COUNT);
+                write_config_to_flash();
             }
             lux_packet_in_memory = 0;
         break;
         case CMD_BOOTLOADER:
             //TODO
             lux_packet_in_memory = 0;
+        break;
+        case CMD_SETUSERDATA:
+            if(lux_packet_length <= USERDATA_SIZE+1){
+                memcpy(cfg.userdata, lux_packet+1, lux_packet_length-1);
+                write_config_to_flash();
+            }
+            lux_packet_in_memory = 0;
+        break;
+        case CMD_GETUSERDATA:
+            BUSYWAIT();
+            lux_stop_rx();
+            clear_destination();
+            lux_packet_length = USERDATA_SIZE;
+            memcpy(lux_packet, cfg.userdata, USERDATA_SIZE);
+            lux_packet_in_memory = 0;
+            lux_start_tx();
         break;
     }
 }

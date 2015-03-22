@@ -2,8 +2,10 @@ ENTRY(Reset_Handler)
 
 MEMORY
 {
-  FLASH (rx) : ORIGIN = 0x08000000, LENGTH = 28K
-  RAM (rwx)  : ORIGIN = 0x20000000, LENGTH = 4K
+  FLASH (rx)  : ORIGIN = 0x08000000, LENGTH = 27K
+  CONFIG (rx) : ORIGIN = 0x08006C00, LENGTH = 1K
+  BL (rx)     : ORIGIN = 0x08007000, LENGTH = 4K
+  RAM (rwx)   : ORIGIN = 0x20000000, LENGTH = 4K
 }
 _estack = ORIGIN(RAM) + LENGTH(RAM);
 
@@ -22,6 +24,18 @@ SECTIONS {
     *(.rodata*)
     . = ALIGN(4);
   } >FLASH
+  .config : {
+    _sconfig = .;
+    . = ALIGN(4);
+    KEEP(*(.config))
+    _econfig = .;
+  } >CONFIG
+  .bl : {
+    _sbl = .;
+    . = ALIGN(4);
+    KEEP(*(.bl))
+    _ebl = .;
+  } >CONFIG
   /* The data section gets a VMA in RAM but an LMA in flash */
   _sidata = .;
   .data : AT ( _sidata ) {

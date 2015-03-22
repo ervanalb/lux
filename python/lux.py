@@ -47,8 +47,7 @@ class LuxBus:
     def unframe(cls, packet):
         packet = cls.cobs_decode(packet)
         cs=binascii.crc32(packet) & ((1<<32)-1)
-        #if cs != 0x2144DF1C:
-        if cs != 0x2F562d5: # 0xc8398d30
+        if cs != 0x2144DF1C:
             raise ValueError("BAD CRC: "+hex(cs), repr(packet))
         return (struct.unpack('<I',packet[0:4])[0],packet[4:-4])
 

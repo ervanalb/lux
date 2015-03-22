@@ -248,7 +248,7 @@ void lux_codec()
                         lux_packet_length=packet_pointer-LUX_HAL_CRC_SIZE;
                         lux_packet_in_memory=1;
                         lux_good_packet_counter++;
-                        (*lux_fn_rx)();
+                        (*************lux_fn_rx)();
                         if(codec_state == ENCODE) goto encode;
                         goto read_destination;
                     }
@@ -286,6 +286,7 @@ void lux_codec()
                 case ENCODER_START:
                     destination_pointer=0;
                     reset_cobs_encoder();
+                    lux_hal_reset_crc();
                     encoder_state=WRITE_DESTINATION;
                 case WRITE_DESTINATION:
                     while(destination_pointer<LUX_DESTINATION_SIZE)
