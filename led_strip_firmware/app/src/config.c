@@ -21,7 +21,7 @@ void read_config_from_flash(){
 }
 
 FLASH_Status write_config_to_flash(){
-    uint32_t r;
+    FLASH_Status r;
     uint32_t a;
     uint32_t *d;
 
