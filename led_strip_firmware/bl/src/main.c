@@ -2,6 +2,8 @@
 #include "lux.h"
 #include <string.h>
 
+#include "stm32f0xx.h"
+
 #define FLASH_START 0x08000000
 #define FLASH_END   0x08008000
 
@@ -25,13 +27,13 @@ enum bootloader_command {
 };
 
 union lux_command_frame {
-	struct cmd_addr_len {
+	struct __attribute__((__packed__)) cmd_addr_len {
         uint8_t cmd;
 		uint32_t addr;
 		uint16_t len;
         uint8_t *data;
 	} addr_len;
-	struct cmd_data {
+	struct __attribute__((__packed__)) cmd_data {
         uint8_t cmd;
         uint8_t *data;
 	} data;
@@ -80,7 +82,7 @@ static void erase_flash(uint32_t addr){
 
     FLASH_ClearFlag(FLASH_FLAG_EOP | FLASH_FLAG_PGERR | FLASH_FLAG_WRPERR); 
 
-    if(FLASH_ErasePage(&cfg_flash) != FLASH_COMPLETE)
+    if(FLASH_ErasePage(addr) != FLASH_COMPLETE)
         goto fail;
 
 fail:
@@ -90,14 +92,12 @@ fail:
 }
 
 static void write_flash(uint32_t* data, uint32_t addr, uint16_t len){
-    FLASH_Status r;
-
     __disable_irq();
     FLASH_Unlock();
 
     FLASH_ClearFlag(FLASH_FLAG_EOP | FLASH_FLAG_PGERR | FLASH_FLAG_WRPERR); 
 
-    for(int i; i < len; i += 4){
+    for(int i = 0; i < len; i += 4){
         if(FLASH_ProgramWord(addr, *data++) != FLASH_COMPLETE)
             goto fail;
         addr += 4;
@@ -108,11 +108,19 @@ fail:
     __enable_irq();
 }
 
+extern uint32_t _siisr;
+
+static void invalidate_app(){
+    erase_flash(FLASH_START);
+    write_flash(&_siisr, FLASH_START, 1024);
+}
+
+
 void rx_packet()
 {
     uint32_t addr;
     uint16_t len;
-    union lux_command_frame *cf = lux_packet;
+    union lux_command_frame *cf = (union lux_command_frame *)lux_packet;
     if(lux_packet_length == 0)
     {
         BUSYWAIT();
@@ -122,7 +130,7 @@ void rx_packet()
     switch(cf->data.cmd)
     {
         case CMD_RESET:
-            //soft_reset(); // Never returns
+            reset(); // Never returns
         case CMD_READID:
             BUSYWAIT();
             send_id();
@@ -146,14 +154,15 @@ void rx_packet()
             if(lux_packet_length >= sizeof(addr) + sizeof(len) + 1){
                 addr = cf->addr_len.addr;
                 len = cf->addr_len.len;
-                if(lux_packet_len != (sizeof(addr) + sizeof(len) + 1 + len)) goto writefail;
+                if(lux_packet_length != (sizeof(addr) + sizeof(len) + 1 + len)) goto writefail;
                 if((FLASH_START < addr) || (addr > FLASH_END)) goto writefail;
                 if((FLASH_START < (addr+len)) || ((addr+len) > FLASH_END)) goto writefail;
+                BUSYWAIT();
                 lux_stop_rx();
                 clear_destination();
                 lux_packet_length = len;
                 write_flash((uint32_t *) cf->addr_len.data, addr, len);
-                memcpy(lux_packet, addr, len);
+                memcpy(lux_packet, (uint32_t *) addr, len);
                 lux_packet_in_memory = 0;
                 lux_start_tx();
                 break;
@@ -167,12 +176,13 @@ void rx_packet()
                 addr = cf->addr_len.addr;
                 len = cf->addr_len.len;
                 if(len > LUX_PACKET_MEMORY_SIZE) goto readfail;
-                if((FLASH_START < addr) || (addr > FLASH_END)) goto readfail;
-                if((FLASH_START < (addr+len)) || ((addr+len) > FLASH_END)) goto readfail;
+                if((FLASH_START > addr) || (addr > FLASH_END)) goto readfail;
+                if((FLASH_START > (addr+len)) || ((addr+len) > FLASH_END)) goto readfail;
+                BUSYWAIT();
                 lux_stop_rx();
                 clear_destination();
                 lux_packet_length = len;
-                memcpy(lux_packet, addr, len);
+                memcpy(lux_packet, (uint32_t *) addr, len);
                 lux_packet_in_memory = 0;
                 lux_start_tx();
                 break;
@@ -181,5 +191,7 @@ void rx_packet()
             lux_packet_in_memory = 0;
             led_on();
             break;
+        default:
+            lux_packet_in_memory = 0;
     }
 }

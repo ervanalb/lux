@@ -35,7 +35,7 @@ FLASH_Status write_config_to_flash(){
 
     a = (uint32_t) &cfg_flash;
     d = (uint32_t *) &cfg;
-    for(int i; i < sizeof(cfg_flash); i += 4){
+    for(int i = 0; i < sizeof(cfg_flash); i += 4){
 //if((r = FLASH_ProgramWord(((uint32_t) (&cfg_flash)) + i, *(uint32_t *) (((uint32_t) (&cfg)) + i))) != FLASH_COMPLETE)
         if((r = FLASH_ProgramWord(a, *d++)) != FLASH_COMPLETE)
             goto fail;

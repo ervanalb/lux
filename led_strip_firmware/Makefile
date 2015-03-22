@@ -19,7 +19,7 @@ BL_INC = -Ibl/inc
 
 # Assembler, compiler, and linker flags
 AFLAGS  = -mlittle-endian -mthumb -mcpu=cortex-m0 -g
-CFLAGS  = $(AFLAGS) -O0 $(INC) -std=c99 -DUSE_STDPERIPH_DRIVER -Wall
+CFLAGS  = $(AFLAGS) -O1 $(INC) -std=c99 -DUSE_STDPERIPH_DRIVER -Wall
 CFLAGS += -DSTM32F031
 CFLAGS += -DUSE_STDPERIPH_DRIVER
 CFLAGS += -DWS2811

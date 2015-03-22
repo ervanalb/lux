@@ -144,5 +144,7 @@ void rx_packet()
             lux_packet_in_memory = 0;
             lux_start_tx();
             break;
+        default:
+            lux_packet_in_memory = 0;
     }
 }
