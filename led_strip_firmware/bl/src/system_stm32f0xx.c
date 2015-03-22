@@ -179,6 +179,10 @@ void SystemInit (void)
 
   /* Configure the System clock frequency, AHB/APBx prescalers and Flash settings */
   SetSysClock();
+
+  // Remap vector table to SRAM
+  RCC_APB2PeriphClockCmd(RCC_APB2Periph_USART1 | RCC_APB2Periph_SYSCFG, ENABLE);
+  SYSCFG_MemoryRemapConfig(SYSCFG_MemoryRemap_SRAM);
 }
 
 /**

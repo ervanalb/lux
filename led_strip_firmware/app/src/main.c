@@ -2,9 +2,7 @@
 #include "lux.h"
 #include "strip.h"
 #include "config.h"
-#include "string.h"
-
-#include "stm32f0xx.h"
+#include <string.h>
 
 #define BUSYWAIT() for(volatile long i = 0; i < 1000000; i++)
 
@@ -33,6 +31,8 @@ char button_pressed;
 void main()
 {
     init();
+    bootloader(); // XXX REMOVE ME
+
     strip_init();
     lux_init();
     read_config_from_flash();
@@ -70,14 +70,10 @@ static void clear_destination()
 
 static void send_id()
 {
-    int i;
     lux_stop_rx();
     clear_destination();
     lux_packet_length = ID_SIZE;
-    for(i=0;i<ID_SIZE;i++)
-    {
-        lux_packet[i]=id[i];
-    }
+    memcpy(lux_packet, id, ID_SIZE);
     lux_packet_in_memory = 0;
     lux_start_tx();
 }
@@ -98,11 +94,11 @@ void rx_packet()
             strip_write(&lux_packet[1]);
         skip_frame:
             lux_packet_in_memory=0;
-        break;
+            break;
         case CMD_READID:
             BUSYWAIT();
             send_id();
-        break;
+            break;
         case CMD_LED:
             if(lux_packet_length == 2){
                 if(lux_packet[1])
@@ -111,7 +107,7 @@ void rx_packet()
                     led_off();
             }
             lux_packet_in_memory = 0;
-        break;
+            break;
         case CMD_BUTTON:
             BUSYWAIT();
             lux_stop_rx();
@@ -121,7 +117,7 @@ void rx_packet()
             button_pressed = 0;
             lux_packet_in_memory = 0;
             lux_start_tx();
-        break;
+            break;
         case CMD_SETADDR:
             if(lux_packet_length == 4*(UNICAST_ADDRESS_COUNT+2)){
                 cfg.multicast_address = *(uint32_t *) lux_packet;
@@ -130,18 +126,16 @@ void rx_packet()
                 write_config_to_flash();
             }
             lux_packet_in_memory = 0;
-        break;
+            break;
         case CMD_BOOTLOADER:
-            //TODO
-            lux_packet_in_memory = 0;
-        break;
+            bootloader(); // Never returns
         case CMD_SETUSERDATA:
             if(lux_packet_length <= USERDATA_SIZE+1){
                 memcpy(cfg.userdata, lux_packet+1, lux_packet_length-1);
                 write_config_to_flash();
             }
             lux_packet_in_memory = 0;
-        break;
+            break;
         case CMD_GETUSERDATA:
             BUSYWAIT();
             lux_stop_rx();
@@ -150,6 +144,6 @@ void rx_packet()
             memcpy(lux_packet, cfg.userdata, USERDATA_SIZE);
             lux_packet_in_memory = 0;
             lux_start_tx();
-        break;
+            break;
     }
 }

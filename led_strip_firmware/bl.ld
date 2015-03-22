@@ -2,7 +2,7 @@ ENTRY(Reset_Handler)
 
 MEMORY
 {
-  FLASH (rx) : ORIGIN = 0x08007000, LENGTH = 4K
+  FLASH (rx) : ORIGIN = 0x08006000, LENGTH = 8K
   RAM (rwx)  : ORIGIN = 0x20000000, LENGTH = 4K
 }
 _estack = ORIGIN(RAM) + LENGTH(RAM);

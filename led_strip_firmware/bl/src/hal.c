@@ -116,10 +116,7 @@ uint8_t button()
 
 void bootloader()
 {
-    NVIC->ICER[0] = 0xFFFF; // Permanently disable all interrupts
-    DMA_Cmd(DMA1_Channel5, DISABLE);
-    DMA_Cmd(DMA1_Channel5, DISABLE);
-    BranchToBootloader();
+    
 }
 
 // LUX HAL
