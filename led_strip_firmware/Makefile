@@ -19,7 +19,7 @@ BL_INC = -Ibl/inc
 
 # Assembler, compiler, and linker flags
 AFLAGS  = -mlittle-endian -mthumb -mcpu=cortex-m0
-CFLAGS  = $(AFLAGS) -g -O3 $(INC) -std=c99 -DUSE_STDPERIPH_DRIVER -Wall
+CFLAGS  = $(AFLAGS) -g -O0 $(INC) -std=c99 -DUSE_STDPERIPH_DRIVER -Wall
 CFLAGS += -DSTM32F031
 CFLAGS += -DUSE_STDPERIPH_DRIVER
 CFLAGS += -DWS2811
@@ -55,12 +55,18 @@ app/%.o: app/%.c
 	arm-none-eabi-gcc $(CFLAGS) $(APP_INC) -c -o $@ $<
 bl/%.o: bl/%.c
 	arm-none-eabi-gcc $(CFLAGS) $(BL_INC) -c -o $@ $<
-gdb: main.elf
-	arm-none-eabi-gdb -x init.gdb
-load: main.elf
-	arm-none-eabi-gdb -x init.gdb -ex load
-loadquit: main.elf
-	arm-none-eabi-gdb -batch -x init.gdb -ex load -ex kill -ex quit
+gdb: app.elf
+	arm-none-eabi-gdb app.elf -x init.gdb
+load: app.elf
+	arm-none-eabi-gdb app.elf -x init.gdb -ex load
+loadquit: app.elf
+	arm-none-eabi-gdb app.elf -batch -x init.gdb -ex load -ex kill -ex quit
+gdb_bl: bl.elf
+	arm-none-eabi-gdb bl.elf -x init.gdb
+load_bl: bl.elf
+	arm-none-eabi-gdb bl.elf -x init.gdb -ex load
+loadquit_bl: bl.elf
+	arm-none-eabi-gdb bl.elf -batch -x init.gdb -ex load -ex kill -ex quit
 stlink:
 	st-util -p 4244
 
