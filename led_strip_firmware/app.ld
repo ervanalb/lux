@@ -24,18 +24,6 @@ SECTIONS {
     *(.rodata*)
     . = ALIGN(4);
   } >FLASH
-  .config : {
-    _sconfig = .;
-    . = ALIGN(4);
-    KEEP(*(.config))
-    _econfig = .;
-  } >CONFIG
-  .bl : {
-    _sbl = .;
-    . = ALIGN(4);
-    KEEP(*(.bl))
-    _ebl = .;
-  } >CONFIG
   /* The data section gets a VMA in RAM but an LMA in flash */
   _sidata = .;
   .data : AT ( _sidata ) {
@@ -56,5 +44,18 @@ SECTIONS {
     . = ALIGN(4);
     _ebss = .;
   } >RAM
+  /* Reserve some FLASH for configuration */
+  .config : {
+    _sconfig = .;
+    . = ALIGN(4);
+    KEEP(*(.config))
+    _econfig = .;
+  } >CONFIG
+  .bl : {
+    _sbl = .;
+    . = ALIGN(4);
+    KEEP(*(.bl))
+    _ebl = .;
+  } >BL
 }
 

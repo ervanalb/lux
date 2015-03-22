@@ -13,4 +13,4 @@ struct config {
 extern struct config cfg;
 
 void read_config_from_flash(void);
-uint32_t write_config_to_flash(void);
+FLASH_Status write_config_to_flash(void);

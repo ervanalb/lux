@@ -5,8 +5,8 @@
 struct config cfg;
 
 struct config cfg_flash __attribute__((section(".config"))) = {
-    .multicast_address_mask = 0x0,
-    .multicast_address = 0x0,
+    .multicast_address_mask = 0x00000000,
+    .multicast_address      = 0xFFFFFFFF,
     .unicast_addresses = {
         0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,    
         0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,    
@@ -20,7 +20,7 @@ void read_config_from_flash(){
     cfg = cfg_flash;
 }
 
-uint32_t write_config_to_flash(){
+FLASH_Status write_config_to_flash(){
     uint32_t r;
 
     __disable_irq();
