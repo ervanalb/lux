@@ -110,6 +110,7 @@ LoopFillZerobss:
 LoopForever:
     b LoopForever
 
+.global BranchToBootloader
 BranchToBootloader:
     ldr r3, =(_sbl + 4) /* Get reset vector address into r3 */
     ldr r1, [r3]        /* Get reset vector into r1 */
