@@ -98,7 +98,7 @@ fail:
 
 }
 
-static volatile void write_flash(volatile uint32_t* data, volatile uint32_t addr, uint16_t len){
+static void write_flash(uint32_t* data, uint32_t addr, uint16_t len){
     static uint32_t buffer[1024 / sizeof(uint32_t)];
     uint32_t end = addr + len;
     int i = 0;

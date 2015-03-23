@@ -21,6 +21,9 @@ void lux_stop_rx();
 // Run lux_start_tx to send a packet
 void lux_start_tx();
 
+// Run lux_reset_counters to reset packet counters to zero
+void lux_reset_counters();
+
 // The packet's destination
 extern uint8_t lux_destination[LUX_DESTINATION_SIZE];
 

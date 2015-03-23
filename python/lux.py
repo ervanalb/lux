@@ -106,23 +106,26 @@ class LuxBus(object):
         self.send_packet(destination, frame)
 
 class LuxDevice(object):
-    # Main commands
-    CMD_FRAME = 0
-    CMD_READID = 1
-    CMD_LED = 2
-    CMD_BUTTON = 3
-    CMD_SETADDR = 4
-    CMD_BOOTLOADER = 5
-    CMD_SETUSERDATA = 6
-    CMD_GETUSERDATA = 7
+    # General Lux Commands
+    CMD_GET_ID = 0x00
+    CMD_RESET = 0x01
+    CMD_BOOTLOADER = 0x02
 
-    # Bootloader commands
-    BL_CMD_RESET = 0x80
-    BL_CMD_READID = 0x81
-    BL_CMD_INVALIDATEAPP = 0x82
-    BL_CMD_ERASE = 0x83
-    BL_CMD_WRITE = 0x84
-    BL_CMD_READ = 0x85
+    # Configuration commands
+    CMD_WRITE_CONFIG = 0x10
+    CMD_WRITE_CONFIG_ACK = 0x11
+
+    CMD_GET_ADDR = 0x12
+    CMD_SET_ADDR = 0x13
+    CMD_SET_ADDR_ACK = 0x14
+
+    CMD_GET_USERDATA = 0x15
+    CMD_SET_USERDATA = 0x16
+    CMD_SET_USERDATA_ACK = 0x17
+
+    CMD_GET_PKTCNT = 0x18
+    CMD_RESET_PKTCNT = 0x19
+    CMD_RESET_PKTCNT_ACK = 0x1a
 
     def __init__(self,bus,address):
         self.bus = bus
@@ -135,16 +138,57 @@ class LuxDevice(object):
         self.bus.rx_pause()
         return self.bus.read()
 
+    def read_result(self, retry=3):
+        for i in range(retry):
+            try:
+                r = self.read()
+            except LuxDecodeError:
+                continue
+            if r is None:
+                continue
+            if r[0] is not 0:
+                continue
+            return r[1]
+        return None
+
     def get_id(self):
         self.bus.clear_rx()
         self.send_command()
         return self.read()
 
+    def reset(self):
+        self.send_command(self.CMD_RESET)
+
     def bootloader(self):
         """ Cause device to jump to bootloader"""
         self.send_command(self.CMD_BOOTLOADER)
 
+    def set_address(self, multi_mask, multi_addr, uni_addrs):
+        while len(uni_addrs) < 16:
+            uni_addrs.append(0xFFFFFFFF)
+        raw_data = struct.pack("18I", multi_mask, multi_addr, *uni_addrs)
+        self.send_command(self.CMD_SET_ADDR, raw_data=raw_data)
+
+    def get_address(self):
+        self.bus.clear_rx()
+        self.send_command(self.CMD_GET_ADDR)
+        r = self.read_result()
+
+
 class LEDStrip(LuxDevice):
+    # Strip-specific configuration
+    CMD_SET_LENGTH = 0x20
+    CMD_GET_LENGTH = 0x21
+    CMD_SET_LENGTH_ACK = 0x22
+
+    # Strip-specific commands
+    CMD_FRAME = 0x80
+    CMD_FRAME_ACK = 0x81
+
+    CMD_SET_LED = 0x82
+    CMD_SET_LED_ACK = 0x83
+    CMD_GET_BUTTON = 0x84
+
     def __init__(self,bus,address,length):
         super(LEDStrip, self).__init__(bus, address)
         self.length = length

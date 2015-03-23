@@ -3,9 +3,11 @@
 #include "strip.h"
 #include "stm32f0xx.h"
 
+#define STRIP_LENGTH (cfg.strip_length)
 #define STRIP_MEMORY_LENGTH (3+STRIP_LENGTH+STRIP_LENGTH/16)
+#define MAX_STRIP_MEMORY_LENGTH (3+MAX_STRIP_LENGTH+MAX_STRIP_LENGTH/16)
 
-static uint16_t strip_memory[STRIP_MEMORY_LENGTH];
+static uint16_t strip_memory[MAX_STRIP_MEMORY_LENGTH];
 
 void strip_init()
 {
@@ -41,13 +43,13 @@ void strip_init()
     // Strip Memory
     strip_memory[0]=0x0000;
     strip_memory[1]=0x0000;
-    for(int i=0;i<STRIP_LENGTH;i++)
+    for(int i=0;i<MAX_STRIP_LENGTH;i++)
     {
         strip_memory[2+i]=0x8000;
     }
-    for(int i=0;i<=STRIP_LENGTH/16;i++)
+    for(int i=0;i<=MAX_STRIP_LENGTH/16;i++)
     {
-        strip_memory[2+STRIP_LENGTH+i]=0xFFFF;
+        strip_memory[2+MAX_STRIP_LENGTH+i]=0xFFFF;
     }
 
     // DMA - SPI
@@ -55,7 +57,7 @@ void strip_init()
     DMA_InitStructure.DMA_PeripheralBaseAddr = (uint32_t)(&(SPI1->DR));
     DMA_InitStructure.DMA_MemoryBaseAddr = (uint32_t)strip_memory;
     DMA_InitStructure.DMA_DIR = DMA_DIR_PeripheralDST;
-    DMA_InitStructure.DMA_BufferSize = STRIP_MEMORY_LENGTH;
+    DMA_InitStructure.DMA_BufferSize = MAX_STRIP_MEMORY_LENGTH;
     DMA_InitStructure.DMA_PeripheralInc = DMA_PeripheralInc_Disable;
     DMA_InitStructure.DMA_MemoryInc = DMA_MemoryInc_Enable;
     DMA_InitStructure.DMA_PeripheralDataSize = DMA_PeripheralDataSize_HalfWord;
@@ -80,6 +82,10 @@ void strip_write(uint8_t* rgb_data)
         b = (*rgb_data++) >> 3;
 
         *strip++ = 0x8000 | (b << 10) | (r << 5) | g;
+    }
+    for(int i=0;i<=STRIP_LENGTH/16;i++)
+    {
+        strip_memory[2+STRIP_LENGTH+i]=0xFFFF;
     }
 
     DMA_Cmd(DMA1_Channel3, DISABLE);

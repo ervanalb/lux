@@ -4,29 +4,53 @@
 #include "config.h"
 #include <string.h>
 
-#define BUSYWAIT() for(volatile long i = 0; i < 100000; i++)
-
-const char id[]="WS2811 LED Strip (fast)";
+const char id[]="WS2811 LED Strip";
 #define ID_SIZE (sizeof(id)-1)
 
 uint8_t match_destination(uint8_t* dest);
 void rx_packet();
 
+// Has the button been pressed since the last query?
+char button_pressed;
+
 // First byte of packet is command
 
 enum lux_command {
-    CMD_FRAME,
-    CMD_READID,
-    CMD_LED,
-    CMD_BUTTON,
-    CMD_SETADDR,
+    // General Lux Commands
+    CMD_GET_ID = 0x00,
+    CMD_RESET,
     CMD_BOOTLOADER,
-    CMD_SETUSERDATA,
-    CMD_GETUSERDATA,
-};
 
-// Has the button been pressed since the last query?
-char button_pressed;
+    // Configuration commands
+    CMD_WRITE_CONFIG = 0x10,
+    CMD_WRITE_CONFIG_ACK,
+
+    CMD_GET_ADDR,
+    CMD_SET_ADDR,
+    CMD_SET_ADDR_ACK,
+
+    CMD_GET_USERDATA,
+    CMD_SET_USERDATA,
+    CMD_SET_USERDATA_ACK,
+
+    CMD_GET_PKTCNT,
+    CMD_RESET_PKTCNT,
+    CMD_RESET_PKTCNT_ACK,
+
+    // Strip-specific configuration
+    CMD_SET_LENGTH = 0x20,
+    CMD_GET_LENGTH,
+    CMD_SET_LENGTH_ACK,
+
+    // Strip-specific commands
+    CMD_FRAME = 0x80,
+    CMD_FRAME_ACK,
+
+    CMD_SET_LED,
+    CMD_SET_LED_ACK,
+
+    CMD_GET_BUTTON,
+};
 
 void main()
 {
@@ -53,6 +77,8 @@ uint8_t match_destination(uint8_t* dest)
 {
     //return !!(*(uint32_t*)dest & 0x01);
     uint32_t addr = *(uint32_t *)dest;
+    // Never respond on 0x00000000
+    if(addr == 0) return 0; 
     if((addr & cfg.multicast_address_mask) == cfg.multicast_address)
         return 1;
     for(int i = 0; i < UNICAST_ADDRESS_COUNT; i++){
@@ -71,80 +97,205 @@ static void send_id()
 {
     lux_stop_rx();
     clear_destination();
+
     lux_packet_length = ID_SIZE;
     memcpy(lux_packet, id, ID_SIZE);
-    lux_packet_in_memory = 0;
+
     lux_start_tx();
 }
 
-void rx_packet()
-{
-    if(lux_packet_length == 0)
-    {
-        BUSYWAIT();
+static void send_button(){
+    lux_stop_rx();
+    clear_destination();
+
+    lux_packet_length = 1;
+    lux_packet[0] = button_pressed;
+
+    button_pressed = 0;
+
+    lux_start_tx();
+}
+
+static void send_ack(uint8_t code){
+    lux_stop_rx();
+    clear_destination();
+
+    lux_packet_length = 1;
+    lux_packet[0] = code;
+
+    lux_start_tx();
+}
+
+static uint8_t set_frame(){
+    if(lux_packet_length != 3*cfg.strip_length+1) return 1;
+    if(!strip_ready()) return 2;
+    strip_write(&lux_packet[1]);
+    return 0;
+}
+
+static uint8_t set_led(){
+    if(lux_packet_length != 2) return 1;
+    if(lux_packet[1])
+        led_on();
+    else
+        led_off();
+    return 0;
+}
+
+static void send_addresses(){
+    lux_stop_rx();
+    clear_destination();
+
+    memcpy(lux_packet, &cfg.multicast_address, 4*(UNICAST_ADDRESS_COUNT + 2));
+
+    lux_start_tx();
+}
+
+static uint8_t set_addresses(){
+    if(lux_packet_length != 4*(UNICAST_ADDRESS_COUNT+2)+1) return 1;
+
+    memcpy(&cfg.multicast_address, lux_packet+1, 4);
+    memcpy(&cfg.multicast_address_mask, lux_packet+5, 4);
+    memcpy(&cfg.unicast_addresses, lux_packet+9, 4*UNICAST_ADDRESS_COUNT);
+
+    SOFT_WRITE_CONFIG;
+    return 0;
+}
+
+static uint8_t set_userdata(){
+    if(lux_packet_length > USERDATA_SIZE+1) return 1;
+    memcpy(cfg.userdata, lux_packet+1, lux_packet_length-1);
+
+    SOFT_WRITE_CONFIG;
+    return 0;
+}
+
+static void send_userdata(){
+    lux_stop_rx();
+    clear_destination();
+
+    lux_packet_length = USERDATA_SIZE;
+    memcpy(lux_packet, cfg.userdata, USERDATA_SIZE);
+
+    lux_start_tx();
+}
+
+static uint8_t set_strip_length(){
+    uint32_t l;
+    if(lux_packet_length != sizeof(cfg.strip_length) + 1) return 1;
+    memcpy(&l, lux_packet+1, sizeof(cfg.strip_length));
+    if(l > MAX_STRIP_LENGTH) return 2;
+    cfg.strip_length = l;
+
+    SOFT_WRITE_CONFIG;
+    return 0;
+}
+
+static void send_strip_length(){
+    lux_stop_rx();
+    clear_destination();
+
+    lux_packet_length = sizeof(cfg.strip_length);
+    memcpy(lux_packet, &cfg.strip_length, sizeof(cfg.strip_length));
+
+    lux_start_tx();
+}
+
+static void send_packet_counters(){
+    uint32_t *d = (uint32_t *) lux_packet;
+
+    lux_stop_rx();
+    clear_destination();
+
+    lux_packet_length = 4 * 5;
+
+    *d++ = lux_good_packet_counter;
+    *d++ = lux_malformed_packet_counter;
+    *d++ = lux_packet_overrun_counter;
+    *d++ = lux_bad_checksum_counter;
+    *d++ = lux_rx_interrupted_counter;
+
+    lux_start_tx();
+}
+
+
+void rx_packet() {
+    // Currently, the lux packet gets entirely processed in this function
+    // so we can release lux_packet immediately
+    lux_packet_in_memory = 0;
+
+    if(lux_packet_length == 0){
         send_id();
+        return;
     }
 
-    switch(lux_packet[0])
+    switch((enum lux_command) lux_packet[0])
     {
-        case CMD_FRAME:
-            if(lux_packet_length != 3*STRIP_LENGTH+1) goto skip_frame;
-            if(!strip_ready()) goto skip_frame;
-            strip_write(&lux_packet[1]);
-        skip_frame:
-            lux_packet_in_memory=0;
-            break;
-        case CMD_READID:
-            BUSYWAIT();
-            send_id();
-            break;
-        case CMD_LED:
-            if(lux_packet_length == 2){
-                if(lux_packet[1])
-                    led_on();
-                else
-                    led_off();
-            }
-            lux_packet_in_memory = 0;
-            break;
-        case CMD_BUTTON:
-            BUSYWAIT();
-            lux_stop_rx();
-            clear_destination();
-            lux_packet_length = 1;
-            lux_packet[0] = button_pressed;
-            button_pressed = 0;
-            lux_packet_in_memory = 0;
-            lux_start_tx();
-            break;
-        case CMD_SETADDR:
-            if(lux_packet_length == 4*(UNICAST_ADDRESS_COUNT+2)){
-                cfg.multicast_address = *(uint32_t *) lux_packet;
-                cfg.multicast_address_mask = *(uint32_t *) lux_packet;
-                memcpy(cfg.unicast_addresses, lux_packet+8, 4*UNICAST_ADDRESS_COUNT);
-                write_config_to_flash();
-            }
-            lux_packet_in_memory = 0;
-            break;
+        case CMD_RESET:
+            reset(); // Never returns
         case CMD_BOOTLOADER:
             bootloader(); // Never returns
-        case CMD_SETUSERDATA:
-            if(lux_packet_length <= USERDATA_SIZE+1){
-                memcpy(cfg.userdata, lux_packet+1, lux_packet_length-1);
-                write_config_to_flash();
-            }
-            lux_packet_in_memory = 0;
+        case CMD_FRAME:
+            set_frame();
             break;
-        case CMD_GETUSERDATA:
-            BUSYWAIT();
-            lux_stop_rx();
-            clear_destination();
-            lux_packet_length = USERDATA_SIZE;
-            memcpy(lux_packet, cfg.userdata, USERDATA_SIZE);
-            lux_packet_in_memory = 0;
-            lux_start_tx();
+        case CMD_FRAME_ACK:
+            send_ack(set_frame());
             break;
-        default:
-            lux_packet_in_memory = 0;
+        case CMD_WRITE_CONFIG:
+            write_config_to_flash();
+            break;
+        case CMD_WRITE_CONFIG_ACK:
+            write_config_to_flash();
+            send_ack(0);
+            break;
+        case CMD_GET_ID:
+            send_id();
+            break;
+        case CMD_SET_LED:
+            set_led();
+            break;
+        case CMD_SET_LED_ACK:
+            send_ack(set_led());
+            break;
+        case CMD_GET_BUTTON:
+            send_button();
+            break;
+        case CMD_GET_ADDR:
+            send_addresses();
+            break;
+        case CMD_SET_ADDR:
+            set_addresses();
+            break;
+        case CMD_SET_ADDR_ACK:
+            send_ack(set_addresses());
+            break;
+        case CMD_SET_USERDATA:
+            set_userdata();
+            break;
+        case CMD_SET_USERDATA_ACK:
+            send_ack(set_userdata());
+            break;
+        case CMD_GET_USERDATA:
+            send_userdata();
+            break;
+        case CMD_SET_LENGTH:
+            set_strip_length();
+            break;
+        case CMD_SET_LENGTH_ACK:
+            send_ack(set_strip_length());
+            break;
+        case CMD_GET_LENGTH:
+            send_strip_length();
+            break;
+        case CMD_GET_PKTCNT:
+            send_packet_counters();
+            break;
+        case CMD_RESET_PKTCNT:
+            lux_reset_counters();
+            break;
+        case CMD_RESET_PKTCNT_ACK:
+            lux_reset_counters();
+            send_ack(0);
+            break;
     }
 }

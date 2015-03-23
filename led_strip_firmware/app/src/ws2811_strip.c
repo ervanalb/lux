@@ -8,11 +8,12 @@
 #define PULSE_WIDTH_1 35
 #define RESET_CYCLES 40
 
-#define STRIP_MEMORY_LENGTH (STRIP_LENGTH*3)
+#define STRIP_MEMORY_LENGTH (cfg.strip_length*3)
+#define MAX_STRIP_MEMORY_LENGTH (MAX_STRIP_LENGTH*3)
 
 #define PULSE_BUFFER_LENGTH 64
 
-static uint8_t strip_memory[STRIP_MEMORY_LENGTH];
+static uint8_t strip_memory[MAX_STRIP_MEMORY_LENGTH];
 static uint8_t pulse_buffer[PULSE_BUFFER_LENGTH];
 
 void strip_init()

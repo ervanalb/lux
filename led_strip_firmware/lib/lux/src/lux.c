@@ -175,12 +175,7 @@ static uint8_t cobs_encode_flush()
 
 void lux_init()
 {
-    lux_good_packet_counter = 0;
-    lux_malformed_packet_counter = 0;
-    lux_packet_overrun_counter = 0;
-    lux_bad_checksum_counter = 0;
-    lux_rx_interrupted_counter = 0;
-
+    lux_reset_counters();
     lux_hal_enable_rx();
 
     codec_state=CODEC_START;
@@ -338,8 +333,18 @@ void lux_stop_rx()
 // Output the packet stored in lux_packet to lux_destination and re-enable the receiver
 void lux_start_tx()
 {
+    // Busywait: wait for RTS to go low
+    for(volatile long i = 0; i < 10000; i++); //FIXME
     codec_state=ENCODE;
     encoder_state=ENCODER_START;
     lux_hal_enable_tx();
 }
 
+// Reset all of the good/bad packet counters to zero
+void lux_reset_counters(){
+    lux_good_packet_counter = 0;
+    lux_malformed_packet_counter = 0;
+    lux_packet_overrun_counter = 0;
+    lux_bad_checksum_counter = 0;
+    lux_rx_interrupted_counter = 0;
+}

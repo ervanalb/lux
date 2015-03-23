@@ -7,6 +7,8 @@
 static DMA_InitTypeDef tx_DMA_InitStructure;
 static uint8_t serial_buffer[SERIAL_BUFFER_SIZE];
 
+void BranchToBootloader(); // Declared in startup.S
+
 // Bring up all hardware
 void init()
 {
@@ -112,6 +114,11 @@ void led_off()
 uint8_t button()
 {
     return !GPIO_ReadInputDataBit(GPIOB,GPIO_Pin_7);
+}
+
+void reset()
+{
+    NVIC_SystemReset();
 }
 
 void bootloader()

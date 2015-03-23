@@ -49,7 +49,6 @@ app/src/startup.o: app/src/startup.s
 bl/src/startup.o: bl/src/startup.s
 	arm-none-eabi-as $(AFLAGS) bl/src/startup.s -o bl/src/startup.o
 lib/%.o: lib/%.c
-	echo wersers
 	arm-none-eabi-gcc $(CFLAGS) -c -o $@ $<
 app/%.o: app/%.c
 	arm-none-eabi-gcc $(CFLAGS) $(APP_INC) -c -o $@ $<
