@@ -3,6 +3,8 @@ lux
 
 Lux is a protocol for the transmission of power and data from a host device to one or more nodes. It is capable of data rates approaching 3 megabits per second and supplying 30 Watts of power over distances of up to 100 feet. It is designed to be easy to implement and uses low-cost cabling and connectors.
 
+Lux was designed as a lighting control protocol, specifically for LED strips. But, it generalizes nicely to any sort of automation on a small to medium scale.
+
 For tech-specs of the protocol, see SPECS.md.
 
 In this repository, you will find:
