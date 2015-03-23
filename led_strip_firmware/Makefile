@@ -30,14 +30,21 @@ LFLAGS  = $(CFLAGS) -nostartfiles -Wl,--gc-sections
 all: main.hex
 clean:
 	-rm -f $(APP_OBJECTS) $(BL_OBJECTS) *.elf *.bin *.map *.hex
-main.hex: app.hex bl.hex
-	cat app.hex bl.hex > combined.hex
+combined.hex: app_config.hex bl.hex
+	cat app_config.hex | head -n -1 >> combined.hex
+	cat bl.hex >> combined.hex
+combined.bin: combined.hex
+	arm-none-eabi-objcopy -I ihex -O binary combined.hex combined.bin
+app_config.hex: app.elf
+	arm-none-eabi-objcopy app.elf -O ihex app_config.hex
 app.hex: app.elf
-	arm-none-eabi-objcopy app.elf -O ihex app.hex
+	arm-none-eabi-objcopy -R .config app.elf -O ihex app.hex
 bl.hex: bl.elf
 	arm-none-eabi-objcopy bl.elf -O ihex bl.hex
+app_config.bin: app.elf
+	arm-none-eabi-objcopy -O binary app.elf app_config.bin
 app.bin: app.elf
-	arm-none-eabi-objcopy -O binary app.elf app.bin
+	arm-none-eabi-objcopy -R .config -O binary app.elf app.bin
 bl.bin: bl.elf
 	arm-none-eabi-objcopy -O binary bl.elf bl.bin
 app.elf: $(APP_OBJECTS)
@@ -71,7 +78,9 @@ stlink:
 stload: app.bin
 	st-flash write app.bin 0x8000000
 stload_bl: bl.bin
-	st-flash write bl.bin 0x8000000
+	st-flash write bl.bin 0x8006000
+stload_full: combined.bin
+	st-flash write combined.bin 0x8000000
 sterase:
 	st-flash erase
 luxload: app.bin

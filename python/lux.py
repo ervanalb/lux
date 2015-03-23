@@ -237,7 +237,7 @@ class LEDStrip(LuxDevice):
     def __init__(self,bus,address):
         super(LEDStrip, self).__init__(bus, address)
         self.type_id = self.get_id()
-        if self.type_id in {"WS2811 LED Strip", "LPD6803 LED Strip"}:
+        if self.type_id not in {"WS2811 LED Strip", "LPD6803 LED Strip"}:
             raise DeviceTypeError
         self.get_length()
         print "Strip @ 0x{:08x}; Length={}; '{}'".format(address, self.length, self.type_id)
@@ -251,7 +251,7 @@ class LEDStrip(LuxDevice):
 
     def set_length(self, l):
         self.bus.clear_rx()
-        self.send_command(self.CMD_GET_LENGTH_ACK, data=struct.pack("H", l))
+        self.send_command(self.CMD_SET_LENGTH_ACK, data=struct.pack("H", l))
         self.read_ack()
         self.length = l
 
