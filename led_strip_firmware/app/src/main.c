@@ -146,6 +146,7 @@ static void send_addresses(){
     lux_stop_rx();
     clear_destination();
 
+    lux_packet_length = 4*(UNICAST_ADDRESS_COUNT +2);
     memcpy(lux_packet, &cfg.multicast_address, 4*(UNICAST_ADDRESS_COUNT + 2));
 
     lux_start_tx();
@@ -181,9 +182,10 @@ static void send_userdata(){
 }
 
 static uint8_t set_strip_length(){
-    uint32_t l;
+    uint32_t l = 0;
     if(lux_packet_length != sizeof(cfg.strip_length) + 1) return 1;
     memcpy(&l, lux_packet+1, sizeof(cfg.strip_length));
+    l &= 0xFFFF; //XXX???
     if(l > MAX_STRIP_LENGTH) return 2;
     cfg.strip_length = l;
 

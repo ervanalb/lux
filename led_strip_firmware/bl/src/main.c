@@ -7,7 +7,7 @@
 #define FLASH_START 0x08000000
 #define FLASH_END   0x08006000
 
-#define BUSYWAIT() for(volatile long i = 0; i < 10000; i++)
+#define BUSYWAIT() for(volatile long i = 0; i < 20000; i++)
 
 const char id[]="LUX Bootloader";
 #define ID_SIZE (sizeof(id)-1)

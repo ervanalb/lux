@@ -24,6 +24,13 @@ class LuxBootloaderDevice(lux.LuxDevice):
     FLASH_PAUSE = 0.0
     PAGE_SIZE = 1024
 
+    BL_CMD_RESET = 0x80 
+    BL_CMD_READID = 0x81
+    BL_CMD_INVALIDATEAPP = 0x82
+    BL_CMD_ERASE = 0x83
+    BL_CMD_WRITE = 0x84
+    BL_CMD_READ = 0x85
+
     def __init__(self, *args, **kwargs):
         super(LuxBootloaderDevice, self).__init__(*args, **kwargs)
 
@@ -64,7 +71,7 @@ class LuxBootloaderDevice(lux.LuxDevice):
     def flash_erase(self, addr):
         """ Erase a page of flash at location `addr` """
         raw_data = struct.pack('I', addr)
-        self.send_command(self.BL_CMD_ERASE, raw_data=raw_data)
+        self.send_command(self.BL_CMD_ERASE, data=raw_data)
         self.flash_pause()
 
         result = self.read()
@@ -77,7 +84,7 @@ class LuxBootloaderDevice(lux.LuxDevice):
         raw_data = struct.pack('IH', addr, length)
 
         self.bus.clear_rx()
-        self.send_command(self.BL_CMD_READ, raw_data=raw_data)
+        self.send_command(self.BL_CMD_READ, data=raw_data)
         self.flash_pause()
         result = self.read()
 
@@ -90,7 +97,7 @@ class LuxBootloaderDevice(lux.LuxDevice):
         raw_data = struct.pack("IH", addr, len(data)) + data
 
         self.bus.clear_rx()
-        self.send_command(self.BL_CMD_WRITE, raw_data=raw_data)
+        self.send_command(self.BL_CMD_WRITE, data=raw_data)
         self.flash_pause()
         result = self.read()
 
@@ -154,11 +161,17 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     bus = lux.LuxBus(args.bus)
-    ldev = lux.LEDStrip(bus, args.luxaddr, 0)
-    ldev.set_led(1)
+    print "Looking for LED strip..."
+    try:
+        ldev = lux.LEDStrip(bus, args.luxaddr)
+        ldev.set_led(1)
+        ldev.send_frame([(1,0,0)] * ldev.length)
+        ldev.bootloader()
+    except lux.LuxDecodeError:
+        print "Unable to find LED strip, might already be in bootloader mode"
 
     dev = LuxBootloaderDevice(bus, BOOTLOADER_ADDR)
-    dev.trigger_bootloader(args.luxaddr)
+    #dev.trigger_bootloader(args.luxaddr)
     time.sleep(0.1)
 
     try:

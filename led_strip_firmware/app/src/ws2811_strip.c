@@ -132,6 +132,9 @@ void strip_write(uint8_t* rgb_data)
 
     for(i=0;i<STRIP_MEMORY_LENGTH;i++)
     {
+        strip_memory[i+1]=rgb_data[i];
+        strip_memory[i]=rgb_data[i+1];
+        i += 2;
         strip_memory[i]=rgb_data[i];
     }
     data_pointer=strip_memory;

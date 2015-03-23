@@ -9,6 +9,9 @@ class DeviceTypeError(Exception):
 class LuxDecodeError(Exception):
     pass
 
+class LuxCommandError(Exception):
+    pass
+
 class LuxBus(object):
     BAUD = 3000000
     RX_PAUSE = 0
@@ -97,12 +100,9 @@ class LuxBus(object):
     def ping(self,destination):
         raise NotImplementedError
 
-    def send_command(self, destination, cmd=None, data=None, raw_data=None):
+    def send_command(self, destination, cmd=None, data=''):
         frame = chr(cmd) if cmd is not None else ''
-        if raw_data is not None:
-            frame += raw_data
-        elif data is not None:
-            frame += ''.join(map(chr, data))
+        frame += data
         self.send_packet(destination, frame)
 
 class LuxDevice(object):
@@ -138,7 +138,7 @@ class LuxDevice(object):
         self.bus.rx_pause()
         return self.bus.read()
 
-    def read_result(self, retry=3):
+    def read_result(self, retry=4):
         for i in range(retry):
             try:
                 r = self.read()
@@ -149,12 +149,32 @@ class LuxDevice(object):
             if r[0] is not 0:
                 continue
             return r[1]
-        return None
+        raise LuxDecodeError
+
+    def read_ack(self, retry=3, read_retry=4):
+        errors = []
+        for i in range(retry):
+            try:
+                r = self.read_result()
+            except LuxDecodeError:
+                continue
+            if r == '\x00':
+                return 0
+            errors.append(r)
+        raise LuxCommandError(errors)
+
+    def command_response(self, *args, **kwargs):
+        self.bus.clear_rx()
+        self.send_command(*args, **kwargs)
+        return self.read_result()
+
+    def command_ack(self, *args, **kwargs):
+        self.bus.clear_rx()
+        self.send_command(*args, **kwargs)
+        return self.read_ack()
 
     def get_id(self):
-        self.bus.clear_rx()
-        self.send_command()
-        return self.read()
+        return self.command_response()
 
     def reset(self):
         self.send_command(self.CMD_RESET)
@@ -167,12 +187,37 @@ class LuxDevice(object):
         while len(uni_addrs) < 16:
             uni_addrs.append(0xFFFFFFFF)
         raw_data = struct.pack("18I", multi_mask, multi_addr, *uni_addrs)
-        self.send_command(self.CMD_SET_ADDR, raw_data=raw_data)
+        self.command_ack(self.CMD_SET_ADDR_ACK, data=raw_data)
 
     def get_address(self):
-        self.bus.clear_rx()
-        self.send_command(self.CMD_GET_ADDR)
-        r = self.read_result()
+        r = self.command_response(self.CMD_GET_ADDR)
+        print len(r)
+        a = struct.unpack("18I", r)
+        return a[0], a[1], a[2:]
+
+    def set_userdata(self, data):
+        self.command_ack(self.CMD_SET_USERDATA_ACK, data=data[:32])
+
+    def get_userdata(self):
+        return self.command_response(self.CMD_GET_USERDATA)
+
+    def write_config(self):
+        self.command_ack(self.CMD_WRITE_CONFIG_ACK)
+
+    def get_packet_stats(self):
+        r = self.command_response(self.CMD_GET_PKTCNT)
+        metrics = struct.unpack("IIIII", r)
+        desc = (
+                "good",
+                "malformed",
+                "overrun",
+                "checksum",
+                "interrupted"
+               )
+        return dict(zip(desc, metrics))
+
+    def reset_packet_stats(self):
+        self.command_ack(self.CMD_RESET_PKTCNT)
 
 
 class LEDStrip(LuxDevice):
@@ -189,23 +234,38 @@ class LEDStrip(LuxDevice):
     CMD_SET_LED_ACK = 0x83
     CMD_GET_BUTTON = 0x84
 
-    def __init__(self,bus,address,length):
+    def __init__(self,bus,address):
         super(LEDStrip, self).__init__(bus, address)
-        self.length = length
+        self.type_id = self.get_id()
+        if self.type_id in {"WS2811 LED Strip", "LPD6803 LED Strip"}:
+            raise DeviceTypeError
+        self.get_length()
+        print "Strip @ 0x{:08x}; Length={}; '{}'".format(address, self.length, self.type_id)
+
+    def get_length(self):
+        self.bus.clear_rx()
+        self.send_command(self.CMD_GET_LENGTH)
+        r = self.read_result()
+        self.length = struct.unpack("H", r)[0]
+        return self.length
+
+    def set_length(self, l):
+        self.bus.clear_rx()
+        self.send_command(self.CMD_GET_LENGTH_ACK, data=struct.pack("H", l))
+        self.read_ack()
+        self.length = l
 
     def send_frame(self,pixels):
         assert len(pixels) == self.length
         data = ''.join([chr(r) + chr(g) + chr(b) for (r,g,b) in pixels])
-        self.send_command(0, raw_data=data)
+        self.command_ack(self.CMD_FRAME_ACK, data=data)
         #self.bus.send_packet(self.address, data)
 
     def set_led(self, state):
-        self.bus.send_command(self.address, 2, [1 if state else 0])
+        self.command_ack(self.address, self.CMD_SET_LED_ACK, '\x01' if state else '\x00')
 
     def get_button(self):
-        self.bus.send_command(self.address, 3)
-        time.sleep(0.3)
-        return self.bus.read()[1]
+        return self.command_response(self.CMD_GET_BUTTON)
 
 
 
