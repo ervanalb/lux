@@ -4,9 +4,9 @@
 #include "config.h"
 #include <string.h>
 
-#define BUSYWAIT() for(volatile long i = 0; i < 1000000; i++)
+#define BUSYWAIT() for(volatile long i = 0; i < 100000; i++)
 
-const char id[]="WS2811 LED Strip";
+const char id[]="WS2811 LED Strip (fast)";
 #define ID_SIZE (sizeof(id)-1)
 
 uint8_t match_destination(uint8_t* dest);

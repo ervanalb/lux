@@ -75,5 +75,7 @@ stload_bl: bl.bin
 	st-flash write bl.bin 0x8000000
 sterase:
 	st-flash erase
+luxload: app.bin
+	python ../python/luxflash.py /dev/ttyUSB0 0x08000000 app.bin
 
 

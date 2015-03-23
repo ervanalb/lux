@@ -3,8 +3,15 @@ import time
 import struct
 import binascii
 
-class LuxBus:
+class DeviceTypeError(Exception):
+    pass
+
+class LuxDecodeError(Exception):
+    pass
+
+class LuxBus(object):
     BAUD = 3000000
+    RX_PAUSE = 0
 
     @staticmethod
     def cobs_encode(data):
@@ -29,11 +36,11 @@ class LuxBus:
         while data[ptr] != '\0':
             ctr=ord(data[ptr])
             if ptr+ctr >= len(data):
-                raise ValueError("COBS decoding failed", repr(data))
+                raise LuxDecodeError("COBS decoding failed", repr(data))
             output+=data[ptr+1:ptr+ctr]+'\0'
             ptr+=ctr
         if ptr != len(data) - 1:
-            raise ValueError("COBS decoding failed", repr(data))
+            raise LuxDecodeError("COBS decoding failed", repr(data))
         return output[0:-1]
 
     @classmethod
@@ -48,7 +55,7 @@ class LuxBus:
         packet = cls.cobs_decode(packet)
         cs=binascii.crc32(packet) & ((1<<32)-1)
         if cs != 0x2144DF1C:
-            raise ValueError("BAD CRC: "+hex(cs), repr(packet))
+            raise LuxDecodeError("BAD CRC: "+hex(cs), repr(packet))
         return (struct.unpack('<I',packet[0:4])[0],packet[4:-4])
 
     def __init__(self,serial_port):
@@ -64,40 +71,95 @@ class LuxBus:
 
     def read(self):
         self.rx += self.s.read(size=self.s.inWaiting())
-        if '\0' in self.rx:
-            frame, _null, self.rx = self.rx.partition('\0')
-            return self.unframe(frame + '\0')
-        return None
+        while '\0' not in self.rx:
+            r = self.s.read()
+            self.rx += r
+            if r == '': # Timeout
+                return None
+        frame, _null, self.rx = self.rx.partition('\0')
+        return self.unframe(frame + '\0')
+
+    @classmethod
+    def rx_pause(cls):
+        time.sleep(cls.RX_PAUSE)
+
+    def clear_rx(self):
+        self.rx = ""
+        self.s.flushInput()
 
     def send_packet(self,destination,data):
         self.s.setRTS(False)
         self.s.write(self.frame(destination, data))
         self.s.flush()
+        time.sleep(0.001)
         self.s.setRTS(True)
 
     def ping(self,destination):
         raise NotImplementedError
 
-    def send_command(self, destination, cmd, data):
-        frame = ''.join(map(chr, [cmd] + data))
+    def send_command(self, destination, cmd=None, data=None, raw_data=None):
+        frame = chr(cmd) if cmd is not None else ''
+        if raw_data is not None:
+            frame += raw_data
+        elif data is not None:
+            frame += ''.join(map(chr, data))
         self.send_packet(destination, frame)
 
-class LEDStrip:
-    def __init__(self,bus,address,length):
+class LuxDevice(object):
+    # Main commands
+    CMD_FRAME = 0
+    CMD_READID = 1
+    CMD_LED = 2
+    CMD_BUTTON = 3
+    CMD_SETADDR = 4
+    CMD_BOOTLOADER = 5
+    CMD_SETUSERDATA = 6
+    CMD_GETUSERDATA = 7
+
+    # Bootloader commands
+    BL_CMD_RESET = 0x80
+    BL_CMD_READID = 0x81
+    BL_CMD_INVALIDATEAPP = 0x82
+    BL_CMD_ERASE = 0x83
+    BL_CMD_WRITE = 0x84
+    BL_CMD_READ = 0x85
+
+    def __init__(self,bus,address):
         self.bus = bus
         self.address = address
+
+    def send_command(self, *args, **kwargs):
+        return self.bus.send_command(self.address, *args, **kwargs)
+
+    def read(self, *args, **kwargs):
+        self.bus.rx_pause()
+        return self.bus.read()
+
+    def get_id(self):
+        self.bus.clear_rx()
+        self.send_command()
+        return self.read()
+
+    def bootloader(self):
+        """ Cause device to jump to bootloader"""
+        self.send_command(self.CMD_BOOTLOADER)
+
+class LEDStrip(LuxDevice):
+    def __init__(self,bus,address,length):
+        super(LEDStrip, self).__init__(bus, address)
         self.length = length
 
     def send_frame(self,pixels):
         assert len(pixels) == self.length
-        data = '\0' + ''.join([chr(r) + chr(g) + chr(b) for (r,g,b) in pixels])
-        self.bus.send_packet(self.address, data)
+        data = ''.join([chr(r) + chr(g) + chr(b) for (r,g,b) in pixels])
+        self.send_command(0, raw_data=data)
+        #self.bus.send_packet(self.address, data)
 
     def set_led(self, state):
         self.bus.send_command(self.address, 2, [1 if state else 0])
 
     def get_button(self):
-        self.bus.send_command(self.address, 3, [])
+        self.bus.send_command(self.address, 3)
         time.sleep(0.3)
         return self.bus.read()[1]
 
