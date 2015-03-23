@@ -227,12 +227,12 @@ class LEDStrip(LuxDevice):
     CMD_SET_LENGTH_ACK = 0x22
 
     # Strip-specific commands
-    CMD_FRAME = 0x80
-    CMD_FRAME_ACK = 0x81
+    CMD_FRAME = 0x90
+    CMD_FRAME_ACK = 0x91
 
-    CMD_SET_LED = 0x82
-    CMD_SET_LED_ACK = 0x83
-    CMD_GET_BUTTON = 0x84
+    CMD_SET_LED = 0x92
+    CMD_SET_LED_ACK = 0x93
+    CMD_GET_BUTTON = 0x94
 
     def __init__(self,bus,address):
         super(LEDStrip, self).__init__(bus, address)
@@ -243,26 +243,23 @@ class LEDStrip(LuxDevice):
         print "Strip @ 0x{:08x}; Length={}; '{}'".format(address, self.length, self.type_id)
 
     def get_length(self):
-        self.bus.clear_rx()
-        self.send_command(self.CMD_GET_LENGTH)
-        r = self.read_result()
+        r = self.command_response(self.CMD_GET_LENGTH)
         self.length = struct.unpack("H", r)[0]
         return self.length
 
     def set_length(self, l):
-        self.bus.clear_rx()
-        self.send_command(self.CMD_SET_LENGTH_ACK, data=struct.pack("H", l))
-        self.read_ack()
-        self.length = l
+        self.command_ack(self.CMD_SET_LENGTH_ACK, data=struct.pack("H", l))
+
+    def send_solid_frame(self, pixel):
+        self.send_frame([pixel] * self.length)
 
     def send_frame(self,pixels):
         assert len(pixels) == self.length
         data = ''.join([chr(r) + chr(g) + chr(b) for (r,g,b) in pixels])
         self.command_ack(self.CMD_FRAME_ACK, data=data)
-        #self.bus.send_packet(self.address, data)
 
     def set_led(self, state):
-        self.command_ack(self.address, self.CMD_SET_LED_ACK, '\x01' if state else '\x00')
+        self.command_ack(self.CMD_SET_LED_ACK, '\x01' if state else '\x00')
 
     def get_button(self):
         return self.command_response(self.CMD_GET_BUTTON)

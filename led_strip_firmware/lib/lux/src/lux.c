@@ -334,7 +334,7 @@ void lux_stop_rx()
 void lux_start_tx()
 {
     // Busywait: wait for RTS to go low
-    for(volatile long i = 0; i < 20000; i++); //FIXME
+    for(volatile long i = 0; i < 100000; i++); //FIXME
     codec_state=ENCODE;
     encoder_state=ENCODER_START;
     lux_hal_enable_tx();

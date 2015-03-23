@@ -27,11 +27,11 @@ CFLAGS += -fdata-sections -ffunction-sections
 LFLAGS  = $(CFLAGS) -nostartfiles -Wl,--gc-sections
 
 # Targets
-all: main.hex
+all: combined.bin app_config.bin
 clean:
 	-rm -f $(APP_OBJECTS) $(BL_OBJECTS) *.elf *.bin *.map *.hex
 combined.hex: app_config.hex bl.hex
-	cat app_config.hex | head -n -1 >> combined.hex
+	cat app_config.hex | head -n -1 > combined.hex
 	cat bl.hex >> combined.hex
 combined.bin: combined.hex
 	arm-none-eabi-objcopy -I ihex -O binary combined.hex combined.bin
@@ -85,5 +85,7 @@ sterase:
 	st-flash erase
 luxload: app.bin
 	python ../python/luxflash.py /dev/ttyUSB0 0x08000000 app.bin
+luxload1: app.bin
+	python ../python/luxflash.py /dev/ttyUSB1 0x08000000 app.bin
 
 

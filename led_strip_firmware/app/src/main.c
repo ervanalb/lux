@@ -4,7 +4,13 @@
 #include "config.h"
 #include <string.h>
 
+#ifdef WS2811
 const char id[]="WS2811 LED Strip";
+#elif LPD6803
+const char id[]="LPD6803 LED Strip";
+#else
+const char id[]="Lux LED Strip";
+#endif
 #define ID_SIZE (sizeof(id)-1)
 
 uint8_t match_destination(uint8_t* dest);
@@ -13,44 +19,7 @@ void rx_packet();
 // Has the button been pressed since the last query?
 char button_pressed;
 
-// First byte of packet is command
-
-enum lux_command {
-    // General Lux Commands
-    CMD_GET_ID = 0x00,
-    CMD_RESET,
-    CMD_BOOTLOADER,
-
-    // Configuration commands
-    CMD_WRITE_CONFIG = 0x10,
-    CMD_WRITE_CONFIG_ACK,
-
-    CMD_GET_ADDR,
-    CMD_SET_ADDR,
-    CMD_SET_ADDR_ACK,
-
-    CMD_GET_USERDATA,
-    CMD_SET_USERDATA,
-    CMD_SET_USERDATA_ACK,
-
-    CMD_GET_PKTCNT,
-    CMD_RESET_PKTCNT,
-    CMD_RESET_PKTCNT_ACK,
-
-    // Strip-specific configuration
-    CMD_SET_LENGTH = 0x20,
-    CMD_GET_LENGTH,
-    CMD_SET_LENGTH_ACK,
-
-    // Strip-specific commands
-    CMD_FRAME = 0x80,
-    CMD_FRAME_ACK,
-
-    CMD_SET_LED,
-    CMD_SET_LED_ACK,
-
-    CMD_GET_BUTTON,
-};
+static union lux_command_frame *luxf = (union lux_command_frame *)lux_packet;
 
 void main()
 {
@@ -93,6 +62,16 @@ static void clear_destination()
     *(uint32_t*)lux_destination = 0;
 }
 
+static void send_ack(uint8_t code){
+    lux_stop_rx();
+    clear_destination();
+
+    lux_packet_length = 1;
+    lux_packet[0] = code;
+
+    lux_start_tx();
+}
+
 static void send_id()
 {
     lux_stop_rx();
@@ -116,26 +95,16 @@ static void send_button(){
     lux_start_tx();
 }
 
-static void send_ack(uint8_t code){
-    lux_stop_rx();
-    clear_destination();
-
-    lux_packet_length = 1;
-    lux_packet[0] = code;
-
-    lux_start_tx();
-}
-
 static uint8_t set_frame(){
     if(lux_packet_length != 3*cfg.strip_length+1) return 1;
     if(!strip_ready()) return 2;
-    strip_write(&lux_packet[1]);
+    strip_write(luxf->carray.data);
     return 0;
 }
 
 static uint8_t set_led(){
     if(lux_packet_length != 2) return 1;
-    if(lux_packet[1])
+    if(luxf->csingle.data)
         led_on();
     else
         led_off();
@@ -147,7 +116,9 @@ static void send_addresses(){
     clear_destination();
 
     lux_packet_length = 4*(UNICAST_ADDRESS_COUNT +2);
-    memcpy(lux_packet, &cfg.multicast_address, 4*(UNICAST_ADDRESS_COUNT + 2));
+    luxf->warray.data[0] = cfg.multicast_address;
+    luxf->warray.data[1] = cfg.multicast_address_mask;
+    memcpy(&luxf->warray.data[2], &cfg.unicast_addresses, 4*UNICAST_ADDRESS_COUNT);
 
     lux_start_tx();
 }
@@ -155,9 +126,9 @@ static void send_addresses(){
 static uint8_t set_addresses(){
     if(lux_packet_length != 4*(UNICAST_ADDRESS_COUNT+2)+1) return 1;
 
-    memcpy(&cfg.multicast_address, lux_packet+1, 4);
-    memcpy(&cfg.multicast_address_mask, lux_packet+5, 4);
-    memcpy(&cfg.unicast_addresses, lux_packet+9, 4*UNICAST_ADDRESS_COUNT);
+    cfg.multicast_address = luxf->warray.data[0];
+    cfg.multicast_address_mask = luxf->warray.data[1];
+    memcpy(&cfg.unicast_addresses, &luxf->warray.data[2], 4*UNICAST_ADDRESS_COUNT);
 
     SOFT_WRITE_CONFIG;
     return 0;
@@ -165,7 +136,7 @@ static uint8_t set_addresses(){
 
 static uint8_t set_userdata(){
     if(lux_packet_length > USERDATA_SIZE+1) return 1;
-    memcpy(cfg.userdata, lux_packet+1, lux_packet_length-1);
+    memcpy(cfg.userdata, luxf->carray.data, lux_packet_length-1);
 
     SOFT_WRITE_CONFIG;
     return 0;
@@ -184,10 +155,8 @@ static void send_userdata(){
 static uint8_t set_strip_length(){
     uint32_t l = 0;
     if(lux_packet_length != sizeof(cfg.strip_length) + 1) return 1;
-    memcpy(&l, lux_packet+1, sizeof(cfg.strip_length));
-    l &= 0xFFFF; //XXX???
-    if(l > MAX_STRIP_LENGTH) return 2;
-    cfg.strip_length = l;
+    if(luxf->ssingle.data > MAX_STRIP_LENGTH) return 2;
+    cfg.strip_length = luxf->ssingle.data;
 
     SOFT_WRITE_CONFIG;
     return 0;
@@ -222,6 +191,7 @@ static void send_packet_counters(){
 
 
 void rx_packet() {
+
     // Currently, the lux packet gets entirely processed in this function
     // so we can release lux_packet immediately
     lux_packet_in_memory = 0;
@@ -231,8 +201,7 @@ void rx_packet() {
         return;
     }
 
-    switch((enum lux_command) lux_packet[0])
-    {
+    switch(luxf->ssingle.cmd) {
         case CMD_RESET:
             reset(); // Never returns
         case CMD_BOOTLOADER:

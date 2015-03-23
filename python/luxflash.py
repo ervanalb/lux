@@ -9,8 +9,8 @@ import argparse
 
 hexi = lambda x: int(x.rpartition("0x")[2], 16)
 
-#BOOTLOADER_ADDR = 0x80000000
-BOOTLOADER_ADDR = 0xFFFFFFFF
+BOOTLOADER_ADDR = 0x80000000
+#BOOTLOADER_ADDR = 0xFFFFFFFF
 
 parser = argparse.ArgumentParser(description="Flash using Lux Bootloader")
 parser.add_argument('bus', type=str, help="Serial port of Lux Bus")
@@ -20,23 +20,17 @@ parser.add_argument('luxaddr', type=hexi, help="Lux address to flash", nargs='?'
 
 
 class LuxBootloaderDevice(lux.LuxDevice):
-    ID_STRING = "LUX Bootloader"
-    FLASH_PAUSE = 0.0
+    VALID_IDS = {"WS2811 LED Strip Bootloader", "LPD6803 LED Strip Bootloader"}
+
     PAGE_SIZE = 1024
 
-    BL_CMD_RESET = 0x80 
-    BL_CMD_READID = 0x81
-    BL_CMD_INVALIDATEAPP = 0x82
-    BL_CMD_ERASE = 0x83
-    BL_CMD_WRITE = 0x84
-    BL_CMD_READ = 0x85
+    BL_CMD_INVALIDATEAPP = 0x80
+    BL_CMD_ERASE = 0x81
+    BL_CMD_WRITE = 0x82
+    BL_CMD_READ = 0x83
 
     def __init__(self, *args, **kwargs):
         super(LuxBootloaderDevice, self).__init__(*args, **kwargs)
-
-    def reset(self):
-        """ Reset the device, jump back to app"""
-        self.send_command(self.BL_CMD_RESET)
 
     def trigger_bootloader(self, address=None):
         """ Cause device at specified address to jump to bootloader"""
@@ -44,18 +38,16 @@ class LuxBootloaderDevice(lux.LuxDevice):
             address = self.address
         self.bus.send_command(address, self.CMD_BOOTLOADER)
 
-    def check_bootloader(self):
+    def assert_bootloader(self):
         """ Check to see if device is in bootloader mode. """
-        self.bus.clear_rx()
-        self.send_command()
-        result = self.read()
-        if (0, self.ID_STRING) != result:
-            raise lux.DeviceTypeError("Device not in bootloader mode: {} @ 0x{:08x}".format(result, self.address))
-        return True
-
-    @classmethod
-    def flash_pause(cls):
-        time.sleep(cls.FLASH_PAUSE)
+        self.type_id = self.get_id()
+        if self.type_id not in self.VALID_IDS:
+            # Try triggering bootloader
+            self.bootloader()
+            time.sleep(0.5)
+            self.type_id = self.get_id()
+            if self.type_id not in self.VALID_IDS:
+                raise lux.DeviceTypeError("Device not in bootloader mode: {} @ 0x{:08x}".format(result, self.address))
 
     def invalidate_app(self):
         """ Have the bootloader invalidate the app.
@@ -65,47 +57,34 @@ class LuxBootloaderDevice(lux.LuxDevice):
         and reset vector. 
 
         Call this first before starting to flash a new image."""
-        self.send_command(self.BL_CMD_INVALIDATEAPP)
-        self.flash_pause()
+        self.command_ack(self.BL_CMD_INVALIDATEAPP)
 
     def flash_erase(self, addr):
         """ Erase a page of flash at location `addr` """
         raw_data = struct.pack('I', addr)
-        self.send_command(self.BL_CMD_ERASE, data=raw_data)
-        self.flash_pause()
-
-        result = self.read()
-        assert result is not None and result[0] == 0, Exception("Invalid response address {}".format(result)) #FIXME Exception
-
+        self.command_ack(self.BL_CMD_ERASE, raw_data)
 
     def flash_read(self, addr, length):
         """ Read a chunk of memory from the device at `addr` """
-        assert 0 < length <= 1024, ValueError("Invalid length, must be <=1024")
+        assert 2 <= length <= 1024, ValueError("Invalid length, must be <=1024")
         raw_data = struct.pack('IH', addr, length)
-
-        self.bus.clear_rx()
-        self.send_command(self.BL_CMD_READ, data=raw_data)
-        self.flash_pause()
-        result = self.read()
-
-        assert result is not None and result[0] == 0, Exception("Invalid response address {}".format(result)) #FIXME Exception
-        return result[1]
+        result = self.command_response(self.BL_CMD_READ, data=raw_data)
+        if len(result) == 1:
+            raise lux.LuxCommandError("Unable to read flash {}@0x{:08x}, errno {}".format(length, addr, ord(result[0])))
+        return result
 
     def flash_write(self, addr, data):
         """ Write a chunk of data to flash memory at `addr` """
         assert len(data) <= 1016, ValueError("Invalid length, must be <=1016")
         raw_data = struct.pack("IH", addr, len(data)) + data
 
-        self.bus.clear_rx()
-        self.send_command(self.BL_CMD_WRITE, data=raw_data)
-        self.flash_pause()
-        result = self.read()
+        result = self.command_response(self.BL_CMD_WRITE, data=raw_data)
 
-        assert result is not None and result[0] == 0, Exception("Invalid response address {}".format(result))
+        if result[0] != '\x00':
+            raise lux.LuxCommandError("Unable to write flash {}@0x{:08x}, errno {}".format(length, addr, ord(result[0])))
 
-        if result[1] != data:
-            print "error", result[1], data
-        return result[1] == data # Verification
+        if result[1:] != data:
+            raise lux.LuxCommandError("Validate after write failed: {}@0x{:08x}".format(length, addr))
 
 def flash_device(dev, binary, start_address):
     CHUNK_SIZE = 512
@@ -114,8 +93,8 @@ def flash_device(dev, binary, start_address):
     print "Start address: ", hex(start_address)
     print "End address: ", hex(start_address + len(data))
 
-    print "Checking for '{}'...".format(dev.ID_STRING)
-    dev.check_bootloader()
+    print "Checking for bootloader..."
+    dev.assert_bootloader()
     print "Success!"
 
     print "Invalidating app..."
@@ -138,10 +117,7 @@ def flash_device(dev, binary, start_address):
             for i in range(5):
                 print "Writing flash", hex(addr), len(chunk)
                 try:
-                    r = dev.flash_write(addr, ''.join(chunk))
-                    if not r:
-                        print "Writing flash 0x{:08x} failed verification".format(addr)
-                        continue
+                    dev.flash_write(addr, ''.join(chunk))
                 except Exception as e:
                     print e
                     print "Writing flash 0x{:08x} failed (no response)".format(addr)
@@ -165,21 +141,13 @@ if __name__ == "__main__":
     try:
         ldev = lux.LEDStrip(bus, args.luxaddr)
         ldev.set_led(1)
-        ldev.send_frame([(1,0,0)] * ldev.length)
+        ldev.send_solid_frame((1,0,0))
         ldev.bootloader()
-    except lux.LuxDecodeError:
+    except (lux.LuxDecodeError, lux.DeviceTypeError):
         print "Unable to find LED strip, might already be in bootloader mode"
 
     dev = LuxBootloaderDevice(bus, BOOTLOADER_ADDR)
-    #dev.trigger_bootloader(args.luxaddr)
-    time.sleep(0.1)
 
-    try:
-        flash_device(dev, args.hexfile, args.addr)
-    except Exception as e:
-        print e
-        for i in range(3):
-            time.sleep(1)
-            print dev.read()
+    flash_device(dev, args.hexfile, args.addr)
 
     

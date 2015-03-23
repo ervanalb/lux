@@ -8,6 +8,8 @@ MEMORY
   RAM (rwx)   : ORIGIN = 0x20000000, LENGTH = 4K
 }
 _estack = ORIGIN(RAM) + LENGTH(RAM);
+_sbl = ORIGIN(BL);
+_ebl = ORIGIN(BL) + LENGTH(BL);
 
 SECTIONS {
   /* Interrupt vector table at the beginning of flash */
@@ -51,11 +53,5 @@ SECTIONS {
     KEEP(*(.config))
     _econfig = .;
   } >CONFIG
-  .bl : {
-    _sbl = .;
-    . = ALIGN(4);
-    KEEP(*(.bl))
-    _ebl = .;
-  } >BL
 }
 

@@ -2,12 +2,13 @@
 #define __LUX_H
 
 #include <stdint.h>
+#include "lux_wire.h"
 
 // How many bytes the destination is
 #define LUX_DESTINATION_SIZE 4
 
 // How many bytes the longest packet can be
-#define LUX_PACKET_MEMORY_SIZE 1024
+#define LUX_PACKET_MEMORY_SIZE LUX_PACKET_MAX_SIZE
 
 // Run lux_init once at the start of the program
 void lux_init();
