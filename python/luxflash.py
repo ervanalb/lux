@@ -9,8 +9,8 @@ import argparse
 
 hexi = lambda x: int(x.rpartition("0x")[2], 16)
 
-BOOTLOADER_ADDR = 0x80000000
-#BOOTLOADER_ADDR = 0xFFFFFFFF
+#BOOTLOADER_ADDR = 0x80000000
+BOOTLOADER_ADDR = 0xFFFFFFFF
 
 parser = argparse.ArgumentParser(description="Flash using Lux Bootloader")
 parser.add_argument('bus', type=str, help="Serial port of Lux Bus")

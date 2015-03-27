@@ -23,6 +23,7 @@ CFLAGS  = $(AFLAGS) -O1 $(INC) -std=c99 -DUSE_STDPERIPH_DRIVER -Wall
 CFLAGS += -DSTM32F031
 CFLAGS += -DUSE_STDPERIPH_DRIVER
 CFLAGS += -DWS2811
+#CFLAGS += -DLPD6803
 CFLAGS += -fdata-sections -ffunction-sections
 LFLAGS  = $(CFLAGS) -nostartfiles -Wl,--gc-sections
 
@@ -84,8 +85,10 @@ stload_full: combined.bin
 sterase:
 	st-flash erase
 luxload: app.bin
-	python ../python/luxflash.py /dev/ttyUSB0 0x08000000 app.bin
+	python ../python/luxflash.py /dev/ttyUSB0 0x08000000 app.bin 
 luxload1: app.bin
 	python ../python/luxflash.py /dev/ttyUSB1 0x08000000 app.bin
+luxload2: app.bin
+	python ../python/luxflash.py /dev/ttyUSB2 0x08000000 app.bin
 
 

@@ -91,8 +91,10 @@ class LuxBus(object):
         self.s.flushInput()
 
     def send_packet(self,destination,data):
+        time.sleep(0.01)
         self.s.setRTS(False)
-        self.s.write(self.frame(destination, data))
+        raw_data = self.frame(destination, data)
+        self.s.write(raw_data)
         self.s.flush()
         time.sleep(0.001)
         self.s.setRTS(True)
@@ -256,7 +258,8 @@ class LEDStrip(LuxDevice):
     def send_frame(self,pixels):
         assert len(pixels) == self.length
         data = ''.join([chr(r) + chr(g) + chr(b) for (r,g,b) in pixels])
-        self.command_ack(self.CMD_FRAME_ACK, data=data)
+        #self.command_ack(self.CMD_FRAME_ACK, data=data)
+        self.send_command(self.CMD_FRAME, data=data)
 
     def set_led(self, state):
         self.command_ack(self.CMD_SET_LED_ACK, '\x01' if state else '\x00')

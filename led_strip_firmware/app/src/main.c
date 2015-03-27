@@ -112,13 +112,14 @@ static uint8_t set_led(){
 }
 
 static void send_addresses(){
+    uint32_t *warray = lux_packet;
     lux_stop_rx();
     clear_destination();
 
     lux_packet_length = 4*(UNICAST_ADDRESS_COUNT +2);
-    luxf->warray.data[0] = cfg.multicast_address;
-    luxf->warray.data[1] = cfg.multicast_address_mask;
-    memcpy(&luxf->warray.data[2], &cfg.unicast_addresses, 4*UNICAST_ADDRESS_COUNT);
+    memcpy(warray+0, &cfg.multicast_address, 4);
+    memcpy(warray+1, &cfg.multicast_address_mask, 4);
+    memcpy(warray+2, &cfg.unicast_addresses, 4*UNICAST_ADDRESS_COUNT);
 
     lux_start_tx();
 }
