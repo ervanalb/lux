@@ -3,10 +3,10 @@ from noise import Perlin2D
 import time
 import colorsys
 
-l = 194
+l = 46
 
 b = lux.LuxBus("/dev/ttyUSB0")
-strip = lux.LEDStrip(b,0xFFFFFFFF,l)
+strip = lux.LEDStrip(b,0xFFFFFFFF)
 
 freq = 5
 
@@ -31,5 +31,6 @@ while True:
     t=time.time()-st
 
     frame = [hsl_to_rgb(rescale_h(ng((rescale_x(float(i)/l),rescale_y(float(i)/l)))),1.0,0.5) for i in range(l)]
+    print "send frame"
     strip.send_frame(frame)
     time.sleep(0.01)

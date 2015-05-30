@@ -185,10 +185,10 @@ class LuxDevice(object):
         """ Cause device to jump to bootloader"""
         self.send_command(self.CMD_BOOTLOADER)
 
-    def set_address(self, multi_mask, multi_addr, uni_addrs):
+    def set_address(self, multi_addr, multi_mask, uni_addrs):
         while len(uni_addrs) < 16:
             uni_addrs.append(0xFFFFFFFF)
-        raw_data = struct.pack("18I", multi_mask, multi_addr, *uni_addrs)
+        raw_data = struct.pack("18I", multi_addr, multi_mask, *uni_addrs)
         self.command_ack(self.CMD_SET_ADDR_ACK, data=raw_data)
 
     def get_address(self):
@@ -274,7 +274,8 @@ if __name__ == '__main__':
     tail = 40
 
     bus = LuxBus('/dev/ttyUSB0')
-    strip = LEDStrip(bus,0xFFFFFFFF,l)
+    strip = LEDStrip(bus,0xFFFFFFFF)
+    l = strip.length
 
     pos = 0
     while True:
@@ -283,7 +284,8 @@ if __name__ == '__main__':
             v = 255 * i / tail
             frame[(pos + i) % l] = (v, v, v)
 
-        strip.send_frame(frame)
+        #strip.send_frame(frame)
+        strip.send_frame([(3,2,1)] * l)
         time.sleep(0.01)
 
         pos = (pos + 1) % l
