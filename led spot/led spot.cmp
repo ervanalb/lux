@@ -1,4 +1,4 @@
-Cmp-Mod V01 Created by CvPcb (25-Oct-2014 BZR 4029)-stable date = Tue 02 Jun 2015 05:32:34 PM EDT
+Cmp-Mod V01 Created by CvPcb (25-Oct-2014 BZR 4029)-stable date = Thu 04 Jun 2015 12:35:15 AM EDT
 
 BeginCmp
 TimeStamp = /556D6796;
@@ -50,6 +50,34 @@ IdModule  = SA0603;
 EndCmp
 
 BeginCmp
+TimeStamp = /556FEF4B;
+Reference = C8;
+ValeurCmp = 1uF;
+IdModule  = SA0805;
+EndCmp
+
+BeginCmp
+TimeStamp = /556D27B1/556FFD7B;
+Reference = C9;
+ValeurCmp = 1uF;
+IdModule  = SA0805;
+EndCmp
+
+BeginCmp
+TimeStamp = /556D3024/556FFD7B;
+Reference = C10;
+ValeurCmp = 1uF;
+IdModule  = SA0805;
+EndCmp
+
+BeginCmp
+TimeStamp = /556D375F/556FFD7B;
+Reference = C11;
+ValeurCmp = 1uF;
+IdModule  = SA0805;
+EndCmp
+
+BeginCmp
 TimeStamp = /556E1048;
 Reference = D1;
 ValeurCmp = 100V;
@@ -60,13 +88,6 @@ BeginCmp
 TimeStamp = /556D9F24;
 Reference = D2;
 ValeurCmp = 48V;
-IdModule  = SA0603_LED;
-EndCmp
-
-BeginCmp
-TimeStamp = /556DA05A;
-Reference = D3;
-ValeurCmp = 3V3;
 IdModule  = SA0603_LED;
 EndCmp
 
@@ -172,13 +193,6 @@ BeginCmp
 TimeStamp = /556DA068;
 Reference = R4;
 ValeurCmp = 10k;
-IdModule  = SM0402;
-EndCmp
-
-BeginCmp
-TimeStamp = /556DA0AB;
-Reference = R5;
-ValeurCmp = 680;
 IdModule  = SM0402;
 EndCmp
 
