@@ -1,0 +1,10 @@
+*.o
+*.elf
+*.hex
+*.bin
+*.map
+*.swp
+lib/CMSIS
+lib/STM32F0xx_StdPeriph_Driver
+lib/STM32_USB_Device_Driver
+lib/STM32_USB_Device_Library
