@@ -5,7 +5,6 @@ C_SRC  = $(wildcard src/*.c)
 C_SRC += $(wildcard lib/STM32F0xx_StdPeriph_Driver/src/*.c)
 C_SRC += $(filter-out lib/STM32_USB_Device_Driver/src/usb_bsp_template.c,$(wildcard lib/STM32_USB_Device_Driver/src/*.c))
 C_SRC += $(wildcard lib/STM32_USB_Device_Library/Core/src/*.c)
-C_SRC += $(wildcard lib/STM32_USB_Device_Library/Class/cdc/src/*.c)
 
 OBJECTS = $(patsubst %.c,%.o,$(C_SRC)) src/startup.o
 
