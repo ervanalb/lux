@@ -218,10 +218,11 @@ void DMA1_Channel2_3_IRQHandler()
 
 void USART1_IRQHandler()
 {
-     if(!tx_in_progress && USART_GetFlagStatus(USART1,USART_FLAG_TXE) && USART_GetFlagStatus(USART1,USART_FLAG_TC))
+    USART_ITConfig(USART1, USART_IT_TC, DISABLE);
+    if(!tx_in_progress && USART_GetFlagStatus(USART1,USART_FLAG_TXE) && USART_GetFlagStatus(USART1,USART_FLAG_TC))
     {
         disable_tx();
         enable_rx();
-        USART_ITConfig(USART1, USART_IT_TC, DISABLE);
     }
 }
+
