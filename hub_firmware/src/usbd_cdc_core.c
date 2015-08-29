@@ -64,6 +64,7 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "usbd_cdc_core.h"
+#include "hal.h"
 
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
@@ -95,7 +96,6 @@ static __IO uint32_t  usbd_cdc_AltSet  = 0;
 
 uint8_t USB_Rx_Buffer   [CDC_DATA_MAX_PACKET_SIZE] ;
 uint16_t USB_Rx_Cnt = 0;
-uint16_t USB_Rx_Ptr = 0;
 uint8_t done_flushing = 1;
 uint8_t need_zlp = 0;
 
@@ -221,30 +221,12 @@ const uint8_t usbd_cdc_CfgDesc[USB_CDC_CONFIG_DESC_SIZ] =
 
 /* Private function ----------------------------------------------------------*/ 
 
-static void try_send()
+static void try_send(void* pdev)
 {
-    while(USB_Rx_Ptr < USB_Rx_Cnt && bytes_to_write())
+    if(USB_Rx_Cnt && bytes_to_write() > USB_Rx_Cnt)
     {
-        write_byte(USB_Rx_Buffer[USB_Rx_Ptr++]);
-    }
-
-    if(USB_Rx_Cnt < CDC_DATA_MAX_PACKET_SIZE)
-    {
-        done_flushing = tx_flush();
-        if(done_flushing)
-        {
-            disable_tx();
-            enable_rx();
-            /* Prepare Out endpoint to receive next packet */
-            DCD_EP_PrepareRx(pdev,
-                             CDC_OUT_EP,
-                             (uint8_t*)(USB_Rx_Buffer),
-                             CDC_DATA_MAX_PACKET_SIZE);
-        }
-    }
-    else if(USB_Rx_Ptr == USB_Rx_Cnt)
-    {
-        /* Prepare Out endpoint to receive next packet */
+        write_bytes(USB_Rx_Buffer, USB_Rx_Cnt);
+        USB_Rx_Cnt = 0;
         DCD_EP_PrepareRx(pdev,
                          CDC_OUT_EP,
                          (uint8_t*)(USB_Rx_Buffer),
@@ -446,7 +428,7 @@ uint8_t  usbd_cdc_DataIn (void *pdev, uint8_t epnum)
   // If 64 bytes available for read, send them out
   // Else if TC and not flag, send out any bytes and set flag
 
-  uint16_t USB_Rx_Ptr;
+  uint16_t USB_Tx_Ptr;
 
   uint16_t bytes_available = bytes_to_read();
 
@@ -462,7 +444,7 @@ uint8_t  usbd_cdc_DataIn (void *pdev, uint8_t epnum)
                USB_Tx_Buffer,
                CDC_DATA_MAX_PACKET_SIZE);
   }
-  else if(USART1_IDLE && (bytes_available || need_zlp))
+  else if(rx_idle() && (bytes_available || need_zlp))
   {
     for(USB_Tx_Ptr = 0; USB_Tx_Ptr < bytes_available; USB_Tx_Ptr++)
     {
@@ -488,14 +470,9 @@ uint8_t  usbd_cdc_DataIn (void *pdev, uint8_t epnum)
 uint8_t  usbd_cdc_DataOut (void *pdev, uint8_t epnum)
 { 
   /* Get the received data buffer and update the counter */
-  USB_Rx_Ptr = 0;
   USB_Rx_Cnt = ((USB_CORE_HANDLE*)pdev)->dev.out_ep[epnum].xfer_count;
 
-  // Calling these extra times doesn't hurt, but we probably want a better state machine regardless
-  disable_rx();
-  enable_tx();
-
-  try_send();
+  try_send(pdev);
 
   return USBD_OK;
 }
@@ -517,21 +494,7 @@ uint8_t  usbd_cdc_SOF (void *pdev)
     FrameCount = 0;
   }
 
-  if(!done_flushing)
-  {
-    done_flushing = tx_flush();
-    if(done_flushing)
-    {
-      disable_tx();
-      enable_rx();
-      /* Prepare Out endpoint to receive next packet */
-      DCD_EP_PrepareRx(pdev,
-                       CDC_OUT_EP,
-                       (uint8_t*)(USB_Rx_Buffer),
-                       CDC_DATA_MAX_PACKET_SIZE);
-    }
-  }
-  else if(USB_Rx_Ptr < USB_Rx_Cnt) try_send();
+  try_send(pdev);
   
   return USBD_OK;
 }
