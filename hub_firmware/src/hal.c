@@ -5,6 +5,49 @@
 
 static DMA_InitTypeDef tx_DMA_InitStructure;
 static uint8_t serial_buffer[SERIAL_BUFFER_SIZE];
+static uint8_t enabled_channels;
+
+#define REMAP_RESET(from, frombit, to, tobit) { \
+    (to)->BSRR = ((from) & (frombit)) ? (tobit) << 16 : (tobit); \
+}
+
+#define REMAP_SET(from, frombit, to, tobit) { \
+    (to)->BSRR = ((from) & (frombit)) ? (tobit) : (tobit) << 16; \
+}
+
+static void set_re()
+{
+    REMAP_RESET(enabled_channels, 0x01, GPIOA, GPIO_Pin_2);
+    REMAP_RESET(enabled_channels, 0x02, GPIOA, GPIO_Pin_0);
+    REMAP_RESET(enabled_channels, 0x04, GPIOF, GPIO_Pin_0);
+    REMAP_RESET(enabled_channels, 0x08, GPIOB, GPIO_Pin_4);
+    REMAP_RESET(enabled_channels, 0x10, GPIOB, GPIO_Pin_6);
+    REMAP_RESET(enabled_channels, 0x20, GPIOB, GPIO_Pin_3);
+}
+
+static void reset_re()
+{
+    GPIOA->BSRR = GPIO_Pin_2 | GPIO_Pin_0;
+    GPIOB->BSRR = GPIO_Pin_4 | GPIO_Pin_6 | GPIO_Pin_3;
+    GPIOF->BSRR = GPIO_Pin_0;
+}
+
+static void set_de()
+{
+    REMAP_SET(enabled_channels, 0x01, GPIOA, GPIO_Pin_1);
+    REMAP_SET(enabled_channels, 0x02, GPIOF, GPIO_Pin_1);
+    REMAP_SET(enabled_channels, 0x04, GPIOB, GPIO_Pin_8);
+    REMAP_SET(enabled_channels, 0x08, GPIOB, GPIO_Pin_5);
+    REMAP_SET(enabled_channels, 0x10, GPIOB, GPIO_Pin_7);
+    REMAP_SET(enabled_channels, 0x20, GPIOA, GPIO_Pin_15);
+}
+
+static void reset_de()
+{
+    GPIOA->BSRR = (GPIO_Pin_1 | GPIO_Pin_15) << 16;
+    GPIOB->BSRR = (GPIO_Pin_8 | GPIO_Pin_5 | GPIO_Pin_7) << 16;
+    GPIOF->BSRR = (GPIO_Pin_1) << 16;
+}
 
 void init()
 {
@@ -23,6 +66,20 @@ void init()
     GPIO_InitStruct.GPIO_Speed = GPIO_Speed_50MHz;
     GPIO_InitStruct.GPIO_PuPd = GPIO_PuPd_NOPULL;
     GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+    // LEDs, DE, and ~RE
+    set_enabled_channels(0);
+    reset_re();
+    reset_de();
+    GPIO_InitStruct.GPIO_Pin = GPIO_Pin_0 | GPIO_Pin_1 | GPIO_Pin_2 | GPIO_Pin_3 |
+                               GPIO_Pin_4 | GPIO_Pin_5 | GPIO_Pin_6 | GPIO_Pin_7 |
+                               GPIO_Pin_15;
+    GPIO_Init(GPIOA, &GPIO_InitStruct);
+    GPIO_InitStruct.GPIO_Pin = GPIO_Pin_0 | GPIO_Pin_3 | GPIO_Pin_4 | GPIO_Pin_5 |
+                               GPIO_Pin_6 | GPIO_Pin_7 | GPIO_Pin_8;
+    GPIO_Init(GPIOB, &GPIO_InitStruct);
+    GPIO_InitStruct.GPIO_Pin = GPIO_Pin_0 | GPIO_Pin_1;
+    GPIO_Init(GPIOF, &GPIO_InitStruct);
 
     // USART
     USART_DeInit(USART1);
@@ -85,6 +142,18 @@ void init()
     GPIO_SetBits(GPIOB, GPIO_Pin_1);
 }
 
+// Sets which channels serial comms go in/out over and sets LEDs
+void set_enabled_channels(uint8_t channels)
+{
+    enabled_channels = channels;
+    REMAP_SET(enabled_channels, 0x01, GPIOA, GPIO_Pin_3);
+    REMAP_SET(enabled_channels, 0x02, GPIOA, GPIO_Pin_4);
+    REMAP_SET(enabled_channels, 0x04, GPIOA, GPIO_Pin_5);
+    REMAP_SET(enabled_channels, 0x08, GPIOA, GPIO_Pin_6);
+    REMAP_SET(enabled_channels, 0x10, GPIOA, GPIO_Pin_7);
+    REMAP_SET(enabled_channels, 0x20, GPIOB, GPIO_Pin_0);
+}
+
 // Pointer to serial buffer where data is being read in RX mode (lags DMA counter)
 static int16_t serial_read_ptr;
 
@@ -103,11 +172,13 @@ void enable_rx()
     serial_read_ptr=0;
     DMA_SetCurrDataCounter(DMA1_Channel3, SERIAL_BUFFER_SIZE);
     DMA_Cmd(DMA1_Channel3, ENABLE);
+    set_re();
 }
 
 // Disables RX DMA request
 void disable_rx()
 {
+    reset_re();
     DMA_Cmd(DMA1_Channel3, DISABLE);
 }
 
@@ -115,12 +186,14 @@ void disable_rx()
 void enable_tx()
 {
     GPIO_SetBits(GPIOB,GPIO_Pin_1); // Serial Transmit
+    set_de();
 }
 
 // Disable the driver on the RS-485 tranceiver
 void disable_tx()
 {
     GPIO_ResetBits(GPIOB,GPIO_Pin_1); // Serial Receive
+    reset_de();
 }
 
 // Calculate the number of bytes behind the DMA counter the read pointer currently is.

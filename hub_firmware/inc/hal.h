@@ -36,4 +36,7 @@ uint8_t rx_idle();
 // Returns whether or not the USART transmitter is idle (characters done being sent)
 uint8_t tx_idle();
 
+// Sets which channels serial comms go in/out over and sets LEDs
+void set_enabled_channels(uint8_t channels);
+
 #endif
