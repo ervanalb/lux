@@ -64,13 +64,8 @@ class LuxBus(object):
     def __init__(self,serial_port):
         self.s=None
         self.s=serial.Serial(serial_port,self.BAUD)
-        self.s.timeout = 1 # 1 second timeout on reads
-        self.s.setRTS(True)
+        self.s.timeout = .1 # .1 second timeout on reads
         self.rx = ""
-
-    def __del__(self):
-        if self.s:
-            self.s.setRTS(True)
 
     def read(self):
         self.rx += self.s.read(size=self.s.inWaiting())
@@ -91,13 +86,9 @@ class LuxBus(object):
         self.s.flushInput()
 
     def send_packet(self,destination,data):
-        time.sleep(0.01)
-        self.s.setRTS(False)
         raw_data = self.frame(destination, data)
         self.s.write(raw_data)
         self.s.flush()
-        time.sleep(0.001)
-        self.s.setRTS(True)
 
     def ping(self,destination):
         raise NotImplementedError
