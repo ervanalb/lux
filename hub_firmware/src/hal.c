@@ -56,7 +56,7 @@ void init()
     DMA_InitTypeDef DMA_InitStructure;
     NVIC_InitTypeDef NVIC_InitStructure;
 
-    RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA | RCC_AHBPeriph_GPIOB | RCC_AHBPeriph_DMA1, ENABLE);
+    RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA | RCC_AHBPeriph_GPIOB | RCC_AHBPeriph_GPIOF | RCC_AHBPeriph_DMA1, ENABLE);
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_USART1, ENABLE);
 
     // RX LED
@@ -205,13 +205,15 @@ int16_t bytes_to_read()
     return remaining;
 }
 
-// Return the value at read_pointer and increment it.
-uint8_t read_byte()
+// Read n bytes from serial buffer into chr
+void read_bytes(uint8_t* chr, int n)
 {
-    uint8_t datum = serial_buffer[serial_read_ptr];
-    serial_read_ptr++;
-    if(serial_read_ptr == SERIAL_BUFFER_SIZE) serial_read_ptr = 0;
-    return datum;
+    for(int i = 0; i < n; i++)
+    {
+        chr[i] = serial_buffer[serial_read_ptr];
+        serial_read_ptr++;
+        if(serial_read_ptr == SERIAL_BUFFER_SIZE) serial_read_ptr = 0;
+    }
 }
 
 // Starts a TX DMA transfer on the current half-buffer.

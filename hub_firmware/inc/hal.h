@@ -21,8 +21,8 @@ void disable_tx();
 // Assume no overflows.
 int16_t bytes_to_read();
 
-// Return the value at read_pointer and increment it.
-uint8_t read_byte();
+// Read n bytes from serial buffer into chr
+void read_bytes(uint8_t* chr, int n);
 
 // Return number of characters remaining in this half-buffer.
 int16_t bytes_to_write();

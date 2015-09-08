@@ -94,10 +94,10 @@ uint8_t usbd_cdc_OtherCfgDesc  [USB_CDC_CONFIG_DESC_SIZ] ;
 
 static __IO uint32_t  usbd_cdc_AltSet  = 0;
 
-uint8_t USB_Rx_Buffer   [CDC_DATA_MAX_PACKET_SIZE] ;
-uint16_t USB_Rx_Cnt = 0;
-uint8_t done_flushing = 1;
-uint8_t need_zlp = 0;
+static uint8_t USB_Rx_Buffer   [CDC_DATA_MAX_PACKET_SIZE] ;
+static uint16_t USB_Rx_Cnt = 0;
+static uint8_t need_zlp = 0;
+static uint8_t packet_sent = 0;
 
 uint8_t USB_Tx_Buffer   [CDC_DATA_MAX_PACKET_SIZE] ;
 
@@ -411,6 +411,38 @@ uint8_t  usbd_cdc_EP0_RxReady (void  *pdev)
   return USBD_OK;
 }
 
+static void try_receive(void* pdev)
+{
+  uint16_t USB_Tx_Ptr;
+
+  static volatile uint16_t bytes_available;
+
+  if(packet_sent) return;
+
+  bytes_available = bytes_to_read();
+
+  if(bytes_available >= CDC_DATA_MAX_PACKET_SIZE)
+  {
+    read_bytes(USB_Tx_Buffer, CDC_DATA_MAX_PACKET_SIZE);
+    need_zlp = 1;
+    DCD_EP_Tx (pdev,
+               CDC_IN_EP,
+               USB_Tx_Buffer,
+               CDC_DATA_MAX_PACKET_SIZE);
+    packet_sent = 1;
+  }
+  else if(rx_idle() && (bytes_available || need_zlp))
+  {
+    read_bytes(USB_Tx_Buffer, bytes_available);
+    need_zlp = 0;
+    DCD_EP_Tx (pdev,
+               CDC_IN_EP,
+               USB_Tx_Buffer,
+               bytes_available);
+    packet_sent = 1;
+  }
+}
+
 /**
   * @brief  usbd_audio_DataIn
   *         Data sent on non-control IN endpoint
@@ -427,35 +459,8 @@ uint8_t  usbd_cdc_DataIn (void *pdev, uint8_t epnum)
 
   // If 64 bytes available for read, send them out
   // Else if TC and not flag, send out any bytes and set flag
-
-  uint16_t USB_Tx_Ptr;
-
-  uint16_t bytes_available = bytes_to_read();
-
-  if(bytes_available >= CDC_DATA_MAX_PACKET_SIZE)
-  {
-    for(USB_Tx_Ptr = 0; USB_Tx_Ptr < CDC_DATA_MAX_PACKET_SIZE; USB_Tx_Ptr++)
-    {
-      USB_Tx_Buffer[USB_Tx_Ptr++] = read_byte();
-    }
-    need_zlp = 1;
-    DCD_EP_Tx (pdev,
-               CDC_IN_EP,
-               USB_Tx_Buffer,
-               CDC_DATA_MAX_PACKET_SIZE);
-  }
-  else if(rx_idle() && (bytes_available || need_zlp))
-  {
-    for(USB_Tx_Ptr = 0; USB_Tx_Ptr < bytes_available; USB_Tx_Ptr++)
-    {
-      USB_Tx_Buffer[USB_Tx_Ptr++] = read_byte();
-    }
-    need_zlp = 0;
-    DCD_EP_Tx (pdev,
-               CDC_IN_EP,
-               USB_Tx_Buffer,
-               CDC_DATA_MAX_PACKET_SIZE);
-  }
+  packet_sent = 0;
+  try_receive(pdev);
 
   return USBD_OK;
 }
@@ -495,6 +500,7 @@ uint8_t  usbd_cdc_SOF (void *pdev)
   }
 
   try_send(pdev);
+  try_receive(pdev);
   
   return USBD_OK;
 }

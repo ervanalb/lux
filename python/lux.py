@@ -193,7 +193,6 @@ class LuxDevice(object):
 
     def get_address(self):
         r = self.command_response(self.CMD_GET_ADDR)
-        print len(r)
         a = struct.unpack("18I", r)
         return a[0], a[1], a[2:]
 
@@ -242,7 +241,6 @@ class LEDStrip(LuxDevice):
         if self.type_id not in {"WS2811 LED Strip", "LPD6803 LED Strip"}:
             raise DeviceTypeError
         self.get_length()
-        print "Strip @ 0x{:08x}; Length={}; '{}'".format(address, self.length, self.type_id)
 
     def get_length(self):
         r = self.command_response(self.CMD_GET_LENGTH)
