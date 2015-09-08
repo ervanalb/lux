@@ -3,10 +3,9 @@ from noise import Perlin2D
 import time
 import colorsys
 
-l = 46
-
-b = lux.LuxBus("/dev/ttyUSB0")
+b = lux.LuxBus("/dev/ttyACM0")
 strip = lux.LEDStrip(b,0xFFFFFFFF)
+l = strip.length
 
 freq = 5
 

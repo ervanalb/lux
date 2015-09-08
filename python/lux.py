@@ -245,7 +245,8 @@ class LEDStrip(LuxDevice):
         self.send_frame([pixel] * self.length)
 
     def send_frame(self,pixels):
-        assert len(pixels) == self.length
+        if len(pixels) != self.length:
+            raise RuntimeError("Expected {0} pixels, got {1}".format(self.length, len(pixels)))
         data = ''.join([chr(r) + chr(g) + chr(b) for (r,g,b) in pixels])
         #self.command_ack(self.CMD_FRAME_ACK, data=data)
         self.send_command(self.CMD_FRAME, data=data)
