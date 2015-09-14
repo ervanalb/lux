@@ -19,7 +19,7 @@ void init()
     RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA | RCC_AHBPeriph_GPIOB |
         RCC_AHBPeriph_GPIOF | RCC_AHBPeriph_DMA1 | RCC_AHBPeriph_CRC, ENABLE);
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_USART1 | RCC_APB2Periph_SYSCFG, ENABLE);
-    
+
     // LED
     led_off();
     GPIO_InitStruct.GPIO_Pin = GPIO_Pin_1;
@@ -63,6 +63,7 @@ void init()
     USART_InitStructure.USART_HardwareFlowControl = USART_HardwareFlowControl_None;
     USART_InitStructure.USART_Mode = USART_Mode_Rx | USART_Mode_Tx;
     USART_Init(USART1,&USART_InitStructure);
+    USART_OneBitMethodCmd(USART1, ENABLE);
     USART_Cmd(USART1,ENABLE);
 
     // USART DMA
@@ -92,7 +93,6 @@ void init()
     tx_DMA_InitStructure.DMA_Priority = DMA_Priority_Low;
     tx_DMA_InitStructure.DMA_PeripheralBaseAddr = (uint32_t)&(USART1->TDR);
     // do not init the TX channel, this is done later
-
     USART_DMACmd(USART1, USART_DMAReq_Rx | USART_DMAReq_Tx, ENABLE);
 
     // CRC

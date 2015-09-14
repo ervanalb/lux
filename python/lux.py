@@ -77,16 +77,13 @@ class LuxBus(object):
         frame, _null, self.rx = self.rx.partition('\0')
         return self.unframe(frame + '\0')
 
-    @classmethod
-    def rx_pause(cls):
-        time.sleep(cls.RX_PAUSE)
-
     def clear_rx(self):
         self.rx = ""
         self.s.flushInput()
 
     def send_packet(self,destination,data):
         raw_data = self.frame(destination, data)
+        #print '{' + ', '.join(["{0:#x}".format(ord(r)) for r in raw_data]) + '}'
         self.s.write(raw_data)
         self.s.flush()
 
@@ -128,7 +125,6 @@ class LuxDevice(object):
         return self.bus.send_command(self.address, *args, **kwargs)
 
     def read(self, *args, **kwargs):
-        self.bus.rx_pause()
         return self.bus.read()
 
     def read_result(self, retry=4):
@@ -260,12 +256,12 @@ class LEDStrip(LuxDevice):
 
 
 if __name__ == '__main__':
-    l = 194
-    tail = 40
+    tail = 10
 
-    bus = LuxBus('/dev/ttyUSB0')
+    bus = LuxBus('/dev/ttyACM0')
     strip = LEDStrip(bus,0xFFFFFFFF)
-    l = strip.length
+    strip.set_length(150)
+    l = strip.get_length()
 
     pos = 0
     while True:
@@ -274,8 +270,10 @@ if __name__ == '__main__':
             v = 255 * i / tail
             frame[(pos + i) % l] = (v, v, v)
 
-        #strip.send_frame(frame)
-        strip.send_frame([(3,2,1)] * l)
-        time.sleep(0.01)
+        #bus.send_packet(0xffffffff,'')
+        #bus.read()
+        strip.send_frame(frame)
+        #strip.send_frame([(3,2,1)] * l)
+        time.sleep(0.5)
 
         pos = (pos + 1) % l

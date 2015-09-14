@@ -1,7 +1,7 @@
 #include "hal.h"
 #include "stm32f0xx.h"
 
-#define SERIAL_BUFFER_SIZE 1024
+#define SERIAL_BUFFER_SIZE 256
 
 static DMA_InitTypeDef tx_DMA_InitStructure;
 static uint8_t serial_buffer[SERIAL_BUFFER_SIZE];
@@ -279,25 +279,25 @@ void DMA1_Channel2_3_IRQHandler()
 {
     DMA_Cmd(DMA1_Channel2, DISABLE);
     DMA_ITConfig(DMA1_Channel2, DMA_IT_TC, DISABLE);
-    if(serial_write_ptr)
-    {
-        begin_tx_dma();
-    }
-    else
-    {
-        tx_in_progress = 0;
-        USART_ClearFlag(USART1, USART_IT_TC);
-        USART_ITConfig(USART1, USART_IT_TC, ENABLE);
-    }
+    USART_ClearFlag(USART1, USART_IT_TC);
+    USART_ITConfig(USART1, USART_IT_TC, ENABLE);
 }
 
 void USART1_IRQHandler()
 {
     USART_ITConfig(USART1, USART_IT_TC, DISABLE);
-    if(!tx_in_progress && USART_GetFlagStatus(USART1,USART_FLAG_TXE) && USART_GetFlagStatus(USART1,USART_FLAG_TC))
+    if(USART_GetFlagStatus(USART1,USART_FLAG_TXE) && USART_GetFlagStatus(USART1,USART_FLAG_TC))
     {
-        disable_tx();
-        enable_rx();
+        if(serial_write_ptr)
+        {
+            begin_tx_dma();
+        }
+        else
+        {
+            tx_in_progress = 0;
+            disable_tx();
+            enable_rx();
+        }
     }
 }
 
