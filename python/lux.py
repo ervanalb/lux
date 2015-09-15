@@ -4,19 +4,21 @@ import select
 import os
 import functools
 
-class TimeoutException(Exception):
+class TimeoutError(Exception):
     pass
 
 class DeviceTypeError(Exception):
     pass
 
-class LuxDecodeError(Exception):
+class DecodeError(Exception):
     pass
 
-class LuxCommandError(Exception):
+class CommandError(Exception):
     pass
 
-class LuxBus(object):
+class Bus(object):
+    MULTICAST = 0xFFFFFFFF
+
     @staticmethod
     def cobs_encode(data):
         output=''
@@ -39,20 +41,20 @@ class LuxBus(object):
         while ptr < len(data):
             ctr=ord(data[ptr])
             if ptr + ctr > len(data):
-                raise LuxDecodeError("COBS decoding failed", repr(data))
+                raise DecodeError("COBS decoding failed", repr(data))
             output += data[ptr + 1:ptr + ctr]
             if ctr < 255:
                 output += '\0'
             ptr += ctr
         if ptr != len(data):
-            raise LuxDecodeError("COBS decoding failed", repr(data))
+            raise DecodeError("COBS decoding failed", repr(data))
         return output[0:-1]
 
     @classmethod
     def frame(cls, destination, data):
-        packet=struct.pack('<I',destination)+data
-        cs=binascii.crc32(packet) & ((1<<32)-1)
-        packet += struct.pack('<I',cs)
+        packet = struct.pack('<I', destination) + data
+        cs = binascii.crc32(packet) & ((1 << 32) - 1)
+        packet += struct.pack('<I', cs)
         return cls.cobs_encode(packet)
 
     @classmethod
@@ -60,7 +62,7 @@ class LuxBus(object):
         packet = cls.cobs_decode(packet)
         cs=binascii.crc32(packet) & ((1<<32)-1)
         if cs != 0x2144DF1C:
-            raise LuxDecodeError("BAD CRC: "+hex(cs), repr(packet))
+            raise DecodeError("BAD CRC: "+hex(cs), repr(packet))
         return (struct.unpack('<I',packet[0:4])[0],packet[4:-4])
 
     def __init__(self, device):
@@ -91,7 +93,7 @@ class LuxBus(object):
                 len_written = os.write(self.s, data)
                 data = data[len_written:]
             else:
-                raise TimeoutException("lux write timed out")
+                raise TimeoutError("lux write timed out")
 
     def lowlevel_read(self):
         while True:
@@ -100,7 +102,7 @@ class LuxBus(object):
                 if self.s in r:
                     self.rx += os.read(self.s, 4096)
                 else:
-                    raise TimeoutException("lux read timed out")
+                    raise TimeoutError("lux read timed out")
             while '\0' in self.rx:
                 frame, _null, self.rx = self.rx.partition('\0')
                 return frame
@@ -109,7 +111,7 @@ class LuxBus(object):
         while True:
             try:
                 return self.unframe(self.lowlevel_read())
-            except LuxDecodeError:
+            except DecodeError:
                 pass
 
     def clear_rx(self):
@@ -127,114 +129,78 @@ class LuxBus(object):
                 self.write(destination, data)
                 rx_destination, rx_data = self.read()
                 if rx_destination != 0:
-                    raise LuxDecodeError
+                    raise DecodeError
                 return rx_data
-            except LuxTimeoutError, LuxDecodeError:
+            except TimeoutError, DecodeError:
                 pass
         raise
 
     def ping(self, destination, *args, **kwargs):
         return self.command(destination, '', *args, **kwargs)
 
-class LuxDevice(object):
+class Device(object):
     # General Lux Commands
-    CMD_GET_ID = 0x00
-    CMD_RESET = 0x01
-    CMD_BOOTLOADER = 0x02
+    CMD_GET_ID = chr(0x00)
+    CMD_RESET = chr(0x01)
+    CMD_BOOTLOADER = chr(0x02)
 
     # Configuration commands
-    CMD_WRITE_CONFIG = 0x10
-    CMD_WRITE_CONFIG_ACK = 0x11
+    CMD_WRITE_CONFIG = chr(0x10)
 
-    CMD_GET_ADDR = 0x12
-    CMD_SET_ADDR = 0x13
-    CMD_SET_ADDR_ACK = 0x14
+    CMD_GET_ADDR = chr(0x12)
+    CMD_SET_ADDR = chr(0x13)
 
-    CMD_GET_USERDATA = 0x15
-    CMD_SET_USERDATA = 0x16
-    CMD_SET_USERDATA_ACK = 0x17
+    CMD_GET_USERDATA = chr(0x15)
+    CMD_SET_USERDATA = chr(0x16)
 
-    CMD_GET_PKTCNT = 0x18
-    CMD_RESET_PKTCNT = 0x19
-    CMD_RESET_PKTCNT_ACK = 0x1a
+    CMD_GET_PKTCNT = chr(0x18)
+    CMD_RESET_PKTCNT = chr(0x19)
 
     def __init__(self, bus, address):
         self.bus = bus
         self.address = address
 
-    def send_command(self, *args, **kwargs):
-        return self.bus.send_command(self.address, *args, **kwargs)
+    def command(self, *args, **kwargs):
+        return self.bus.command(self.address, *args, **kwargs)
 
-    def read(self, *args, **kwargs):
-        return self.bus.read()
+    def write(self, *args, **kwargs):
+        return self.bus.write(self.address, *args, **kwargs)
 
-    def read_result(self, retry=4):
-        for i in range(retry):
-            try:
-                r = self.read()
-            except LuxDecodeError:
-                continue
-            if r is None:
-                continue
-            if r[0] is not 0:
-                continue
-            return r[1]
-        raise LuxDecodeError
+    def ack_command(self, *args, **kwargs):
+        result = self.command(*args, **kwargs)
+        if result != '':
+            raise DecodeError
 
-    def read_ack(self, retry=3, read_retry=4):
-        errors = []
-        for i in range(retry):
-            try:
-                r = self.read_result()
-            except LuxDecodeError:
-                continue
-            if r == '\x00':
-                return 0
-            errors.append(r)
-        raise LuxCommandError(errors)
+    def get_id(self, *args, **kwargs):
+        return self.command(self.CMD_GET_ID, *args, **kwargs)
 
-    def command_response(self, *args, **kwargs):
-        self.bus.clear_rx()
-        self.send_command(*args, **kwargs)
-        return self.read_result()
+    def reset(self, *args, **kwargs):
+        self.ack_command(self.CMD_RESET, *args, **kwargs)
 
-    def command_ack(self, *args, **kwargs):
-        self.bus.clear_rx()
-        self.send_command(*args, **kwargs)
-        return self.read_ack()
+    def bootloader(self, *args, **kwargs):
+        """ Cause device to jump to bootloader """
+        self.ack_command(self.CMD_BOOTLOADER, *args, **kwargs)
 
-    def get_id(self):
-        return self.command_response()
+    def set_address(self, multi_addr, multi_mask, uni_addrs, *args, **kwargs):
+        uni_addrs += [Bus.MULTICAST] * (16 - len(uni_addrs))
+        self.ack_command(self.CMD_SET_ADDR + struct.pack("18I", multi_addr, multi_mask, *uni_addrs), *args, **kwargs)
 
-    def reset(self):
-        self.send_command(self.CMD_RESET)
-
-    def bootloader(self):
-        """ Cause device to jump to bootloader"""
-        self.send_command(self.CMD_BOOTLOADER)
-
-    def set_address(self, multi_addr, multi_mask, uni_addrs):
-        while len(uni_addrs) < 16:
-            uni_addrs.append(0xFFFFFFFF)
-        raw_data = struct.pack("18I", multi_addr, multi_mask, *uni_addrs)
-        self.command_ack(self.CMD_SET_ADDR_ACK, data=raw_data)
-
-    def get_address(self):
-        r = self.command_response(self.CMD_GET_ADDR)
+    def get_address(self, *args, **kwargs):
+        r = self.command(self.CMD_GET_ADDR, *args, **kwargs)
         a = struct.unpack("18I", r)
         return a[0], a[1], a[2:]
 
-    def set_userdata(self, data):
-        self.command_ack(self.CMD_SET_USERDATA_ACK, data=data[:32])
+    def set_userdata(self, data, *args, **kwargs):
+        self.ack_command(self.CMD_SET_USERDATA + data[:32], *args, **kwargs)
 
-    def get_userdata(self):
-        return self.command_response(self.CMD_GET_USERDATA)
+    def get_userdata(self, *args, **kwargs):
+        return self.command(self.CMD_GET_USERDATA, *args, **kwargs)
 
-    def write_config(self):
-        self.command_ack(self.CMD_WRITE_CONFIG_ACK)
+    def write_config(self, *args, **kwargs):
+        self.ack_command(self.CMD_WRITE_CONFIG, *args, **kwargs)
 
-    def get_packet_stats(self):
-        r = self.command_response(self.CMD_GET_PKTCNT)
+    def get_packet_stats(self, *args, **kwargs):
+        r = self.command(self.CMD_GET_PKTCNT, *args, **kwargs)
         metrics = struct.unpack("IIIII", r)
         desc = (
                 "good",
@@ -245,65 +211,64 @@ class LuxDevice(object):
                )
         return dict(zip(desc, metrics))
 
-    def reset_packet_stats(self):
-        self.command_ack(self.CMD_RESET_PKTCNT)
+    def reset_packet_stats(self, *args, **kwargs):
+        self.ack_command(self.CMD_RESET_PKTCNT, *args, **kwargs)
 
 
-class LEDStrip(LuxDevice):
+class LEDStrip(Device):
     # Strip-specific configuration
-    CMD_SET_LENGTH = 0x20
-    CMD_GET_LENGTH = 0x21
-    CMD_SET_LENGTH_ACK = 0x22
+    CMD_SET_LENGTH = chr(0x20)
+    CMD_GET_LENGTH = chr(0x21)
 
     # Strip-specific commands
-    CMD_FRAME = 0x90
-    CMD_FRAME_ACK = 0x91
+    CMD_FRAME = chr(0x90)
+    CMD_FRAME_ACK = chr(0x91)
 
-    CMD_SET_LED = 0x92
-    CMD_SET_LED_ACK = 0x93
-    CMD_GET_BUTTON = 0x94
+    CMD_SET_LED = chr(0x92)
+    CMD_GET_BUTTON = chr(0x94)
 
-    def __init__(self,bus,address):
-        super(LEDStrip, self).__init__(bus, address)
+    def __init__(self, *args, **kwargs):
+        super(LEDStrip, self).__init__(*args, **kwargs)
         self.type_id = self.get_id()
         if self.type_id not in {"WS2811 LED Strip", "LPD6803 LED Strip"}:
             raise DeviceTypeError
         self.get_length()
 
-    def get_length(self):
-        r = self.command_response(self.CMD_GET_LENGTH)
+    def get_length(self, *args, **kwargs):
+        r = self.command(self.CMD_GET_LENGTH, *args, **kwargs)
         self.length = struct.unpack("H", r)[0]
         return self.length
 
-    def set_length(self, l):
-        self.command_ack(self.CMD_SET_LENGTH_ACK, data=struct.pack("H", l))
+    def set_length(self, length, *args, **kwargs):
+        self.ack_command(self.CMD_SET_LENGTH + struct.pack("H", length))
 
-    def send_solid_frame(self, pixel):
-        self.send_frame([pixel] * self.length)
+    def send_solid_frame(self, pixel, *args, **kwargs):
+        self.send_frame([pixel] * self.length, *args, **kwargs)
 
-    def send_frame(self,pixels):
+    def send_frame(self, pixels, ack = False, *args, **kwargs):
         if len(pixels) != self.length:
             raise RuntimeError("Expected {0} pixels, got {1}".format(self.length, len(pixels)))
         data = ''.join([chr(r) + chr(g) + chr(b) for (r,g,b) in pixels])
-        #self.command_ack(self.CMD_FRAME_ACK, data=data)
-        self.send_command(self.CMD_FRAME, data=data)
+        if ack:
+            self.command(self.CMD_FRAME_ACK + data)
+        else:
+            self.write(self.CMD_FRAME + data)
 
-    def set_led(self, state):
-        self.command_ack(self.CMD_SET_LED_ACK, '\x01' if state else '\x00')
+    def set_led(self, state, *args, **kwargs):
+        self.ack_command(self.CMD_SET_LED, struct.pack('b', state), *args, **kwargs)
 
-    def get_button(self):
-        return self.command_response(self.CMD_GET_BUTTON)
-
-
+    def get_button(self, *args, **kwargs):
+        r = self.command(self.CMD_GET_BUTTON, *args, **kwargs)
+        return struct.unpack('?', r)
 
 if __name__ == '__main__':
     import time
     tail = 10
 
-    with LuxBus('/dev/ttyACM0') as bus:
-        print bus.ping(0xFFFFFFFF)
-
-        strip = LEDStrip(bus,0xFFFFFFFF)
+    with Bus('/dev/ttyACM0') as bus:
+        strip = LEDStrip(bus, 0xFFFFFFFF)
+        print strip.get_id()
+        print strip.get_address()
         strip.set_length(150)
         l = strip.get_length()
 
