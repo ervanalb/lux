@@ -1,7 +1,11 @@
-import serial
-import time
 import struct
 import binascii
+import select
+import os
+import functools
+
+class TimeoutException(Exception):
+    pass
 
 class DeviceTypeError(Exception):
     pass
@@ -13,9 +17,6 @@ class LuxCommandError(Exception):
     pass
 
 class LuxBus(object):
-    BAUD = 3000000
-    RX_PAUSE = 0
-
     @staticmethod
     def cobs_encode(data):
         output=''
@@ -33,16 +34,17 @@ class LuxBus(object):
 
     @staticmethod
     def cobs_decode(data):
-        output=''
-        ptr=0
-        #while ptr < len(data):
-        while data[ptr] != '\0':
+        output = ''
+        ptr = 0
+        while ptr < len(data):
             ctr=ord(data[ptr])
-            if ptr+ctr >= len(data):
+            if ptr + ctr > len(data):
                 raise LuxDecodeError("COBS decoding failed", repr(data))
-            output+=data[ptr+1:ptr+ctr]+'\0'
-            ptr+=ctr
-        if ptr != len(data) - 1:
+            output += data[ptr + 1:ptr + ctr]
+            if ctr < 255:
+                output += '\0'
+            ptr += ctr
+        if ptr != len(data):
             raise LuxDecodeError("COBS decoding failed", repr(data))
         return output[0:-1]
 
@@ -51,7 +53,7 @@ class LuxBus(object):
         packet=struct.pack('<I',destination)+data
         cs=binascii.crc32(packet) & ((1<<32)-1)
         packet += struct.pack('<I',cs)
-        return '\0'+cls.cobs_encode(packet)+'\0'
+        return cls.cobs_encode(packet)
 
     @classmethod
     def unframe(cls, packet):
@@ -61,39 +63,78 @@ class LuxBus(object):
             raise LuxDecodeError("BAD CRC: "+hex(cs), repr(packet))
         return (struct.unpack('<I',packet[0:4])[0],packet[4:-4])
 
-    def __init__(self,serial_port):
-        self.s=None
-        self.s=serial.Serial(serial_port,self.BAUD)
-        self.s.timeout = .1 # .1 second timeout on reads
-        self.rx = ""
+    def __init__(self, device):
+        self.s = None
+        self.dev = device
+        self.rx = ''
+        self.timeout = 0.1
+
+    def __enter__(self):
+        self.open()
+        return self
+
+    def __exit__(self, type, value, traceback):
+        self.close()
+
+    def open(self):
+        self.s = os.open(self.dev, os.O_RDWR | os.O_NONBLOCK)
+
+    def close(self):
+        os.close(self.s)
+        self.s = None
+
+    def lowlevel_write(self, data):
+        data += '\0'
+        while data:
+            (r, w, e) = select.select([], [self.s], [], self.timeout)
+            if self.s in w:
+                len_written = os.write(self.s, data)
+                data = data[len_written:]
+            else:
+                raise TimeoutException("lux write timed out")
+
+    def lowlevel_read(self):
+        while True:
+            while '\0' not in self.rx:
+                (r, w, e) = select.select([self.s], [], [], self.timeout)
+                if self.s in r:
+                    self.rx += os.read(self.s, 4096)
+                else:
+                    raise TimeoutException("lux read timed out")
+            while '\0' in self.rx:
+                frame, _null, self.rx = self.rx.partition('\0')
+                return frame
 
     def read(self):
-        self.rx += self.s.read(size=self.s.inWaiting())
-        while '\0' not in self.rx:
-            r = self.s.read()
-            self.rx += r
-            if r == '': # Timeout
-                return None
-        frame, _null, self.rx = self.rx.partition('\0')
-        return self.unframe(frame + '\0')
+        while True:
+            try:
+                return self.unframe(self.lowlevel_read())
+            except LuxDecodeError:
+                pass
 
     def clear_rx(self):
-        self.rx = ""
-        self.s.flushInput()
+        self.rx = ''
+        while os.read(self.s, 4096):
+            pass
 
-    def send_packet(self,destination,data):
-        raw_data = self.frame(destination, data)
-        #print '{' + ', '.join(["{0:#x}".format(ord(r)) for r in raw_data]) + '}'
-        self.s.write(raw_data)
-        self.s.flush()
+    def write(self, destination, data):
+        self.clear_rx()
+        self.lowlevel_write(self.frame(destination, data))
 
-    def ping(self,destination):
-        raise NotImplementedError
+    def command(self, destination, data, retry = 3):
+        for r in range(retry):
+            try:
+                self.write(destination, data)
+                rx_destination, rx_data = self.read()
+                if rx_destination != 0:
+                    raise LuxDecodeError
+                return rx_data
+            except LuxTimeoutError, LuxDecodeError:
+                pass
+        raise
 
-    def send_command(self, destination, cmd=None, data=''):
-        frame = chr(cmd) if cmd is not None else ''
-        frame += data
-        self.send_packet(destination, frame)
+    def ping(self, destination, *args, **kwargs):
+        return self.command(destination, '', *args, **kwargs)
 
 class LuxDevice(object):
     # General Lux Commands
@@ -117,7 +158,7 @@ class LuxDevice(object):
     CMD_RESET_PKTCNT = 0x19
     CMD_RESET_PKTCNT_ACK = 0x1a
 
-    def __init__(self,bus,address):
+    def __init__(self, bus, address):
         self.bus = bus
         self.address = address
 
@@ -256,24 +297,27 @@ class LEDStrip(LuxDevice):
 
 
 if __name__ == '__main__':
+    import time
     tail = 10
 
-    bus = LuxBus('/dev/ttyACM0')
-    strip = LEDStrip(bus,0xFFFFFFFF)
-    strip.set_length(150)
-    l = strip.get_length()
+    with LuxBus('/dev/ttyACM0') as bus:
+        print bus.ping(0xFFFFFFFF)
 
-    pos = 0
-    while True:
-        frame = [(0,0,0)] * l
-        for i in range(tail+1):
-            v = 255 * i / tail
-            frame[(pos + i) % l] = (v, v, v)
+        strip = LEDStrip(bus,0xFFFFFFFF)
+        strip.set_length(150)
+        l = strip.get_length()
 
-        #bus.send_packet(0xffffffff,'')
-        #bus.read()
-        strip.send_frame(frame)
-        #strip.send_frame([(3,2,1)] * l)
-        time.sleep(0.5)
+        pos = 0
+        while True:
+            frame = [(0,0,0)] * l
+            for i in range(tail+1):
+                v = 255 * i / tail
+                frame[(pos + i) % l] = (v, v, v)
 
-        pos = (pos + 1) % l
+            #bus.send_packet(0xffffffff,'')
+            #bus.read()
+            strip.send_frame(frame)
+            #strip.send_frame([(3,2,1)] * l)
+            time.sleep(0.5)
+
+            pos = (pos + 1) % l
