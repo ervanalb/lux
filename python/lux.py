@@ -2,7 +2,6 @@ import struct
 import binascii
 import select
 import os
-import functools
 
 class TimeoutError(Exception):
     pass
@@ -175,11 +174,11 @@ class Device(object):
         return self.command(self.CMD_GET_ID, *args, **kwargs)
 
     def reset(self, *args, **kwargs):
-        self.ack_command(self.CMD_RESET, *args, **kwargs)
+        self.write(self.CMD_RESET, *args, **kwargs)
 
     def bootloader(self, *args, **kwargs):
         """ Cause device to jump to bootloader """
-        self.ack_command(self.CMD_BOOTLOADER, *args, **kwargs)
+        self.write(self.CMD_BOOTLOADER, *args, **kwargs)
 
     def set_address(self, multi_addr, multi_mask, uni_addrs, *args, **kwargs):
         uni_addrs += [Bus.MULTICAST] * (16 - len(uni_addrs))
@@ -213,7 +212,6 @@ class Device(object):
 
     def reset_packet_stats(self, *args, **kwargs):
         self.ack_command(self.CMD_RESET_PKTCNT, *args, **kwargs)
-
 
 class LEDStrip(Device):
     # Strip-specific configuration
@@ -255,20 +253,18 @@ class LEDStrip(Device):
             self.write(self.CMD_FRAME + data)
 
     def set_led(self, state, *args, **kwargs):
-        self.ack_command(self.CMD_SET_LED, struct.pack('b', state), *args, **kwargs)
+        self.ack_command(self.CMD_SET_LED + struct.pack('?', state), *args, **kwargs)
 
     def get_button(self, *args, **kwargs):
         r = self.command(self.CMD_GET_BUTTON, *args, **kwargs)
-        return struct.unpack('?', r)
+        return struct.unpack('?', r)[0]
 
 if __name__ == '__main__':
     import time
-    tail = 10
+    tail = 30
 
     with Bus('/dev/ttyACM0') as bus:
         strip = LEDStrip(bus, 0xFFFFFFFF)
-        print strip.get_id()
-        print strip.get_address()
         strip.set_length(150)
         l = strip.get_length()
 
@@ -279,10 +275,7 @@ if __name__ == '__main__':
                 v = 255 * i / tail
                 frame[(pos + i) % l] = (v, v, v)
 
-            #bus.send_packet(0xffffffff,'')
-            #bus.read()
             strip.send_frame(frame)
-            #strip.send_frame([(3,2,1)] * l)
-            time.sleep(0.5)
+            time.sleep(0.01)
 
             pos = (pos + 1) % l
