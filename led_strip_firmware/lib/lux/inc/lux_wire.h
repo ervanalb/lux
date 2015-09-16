@@ -13,24 +13,19 @@ enum __attribute__((__packed__)) lux_command {
 
     // Configuration commands
     CMD_WRITE_CONFIG = 0x10,
-    CMD_WRITE_CONFIG_ACK,
 
     CMD_GET_ADDR,
     CMD_SET_ADDR,
-    CMD_SET_ADDR_ACK,
 
     CMD_GET_USERDATA,
     CMD_SET_USERDATA,
-    CMD_SET_USERDATA_ACK,
 
     CMD_GET_PKTCNT,
     CMD_RESET_PKTCNT,
-    CMD_RESET_PKTCNT_ACK,
 
     // Strip-specific configuration
     CMD_SET_LENGTH = 0x20,
     CMD_GET_LENGTH,
-    CMD_SET_LENGTH_ACK,
 
     // Bootloader-specific commands
     CMD_INVALIDATEAPP = 0x80,
@@ -43,8 +38,6 @@ enum __attribute__((__packed__)) lux_command {
     CMD_FRAME_ACK,
 
     CMD_SET_LED,
-    CMD_SET_LED_ACK,
-
     CMD_GET_BUTTON,
 };
 

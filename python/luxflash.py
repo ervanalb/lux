@@ -73,7 +73,7 @@ class BootloaderDevice(lux.Device):
         """ Write a chunk of data to flash memory at `addr` """
         assert len(data) <= 1016, ValueError("Invalid length, must be <=1016")
 
-        result = self.command(self.BL_CMD_WRITE + struct.pack("IH", addr, len(data)) + data, *args, **kwargs)
+        result = self.command(self.BL_CMD_WRITE + struct.pack("I", addr) + data, *args, **kwargs)
 
         if result != data:
             raise lux.CommandError("Validate after write failed: {}@0x{:08x}".format(length, addr))

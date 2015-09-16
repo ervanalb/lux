@@ -2,6 +2,7 @@ import struct
 import binascii
 import select
 import os
+import errno
 
 class TimeoutError(Exception):
     pass
@@ -115,8 +116,13 @@ class Bus(object):
 
     def clear_rx(self):
         self.rx = ''
-        while os.read(self.s, 4096):
-            pass
+        while True:
+            try:
+                os.read(self.s, 4096)
+            except OSError as e:
+                if e.errno == errno.EAGAIN:
+                    break
+                raise
 
     def write(self, destination, data):
         self.clear_rx()
@@ -146,14 +152,14 @@ class Device(object):
     # Configuration commands
     CMD_WRITE_CONFIG = chr(0x10)
 
-    CMD_GET_ADDR = chr(0x12)
-    CMD_SET_ADDR = chr(0x13)
+    CMD_GET_ADDR = chr(0x11)
+    CMD_SET_ADDR = chr(0x12)
 
-    CMD_GET_USERDATA = chr(0x15)
-    CMD_SET_USERDATA = chr(0x16)
+    CMD_GET_USERDATA = chr(0x13)
+    CMD_SET_USERDATA = chr(0x14)
 
-    CMD_GET_PKTCNT = chr(0x18)
-    CMD_RESET_PKTCNT = chr(0x19)
+    CMD_GET_PKTCNT = chr(0x15)
+    CMD_RESET_PKTCNT = chr(0x16)
 
     def __init__(self, bus, address):
         self.bus = bus
@@ -223,7 +229,7 @@ class LEDStrip(Device):
     CMD_FRAME_ACK = chr(0x91)
 
     CMD_SET_LED = chr(0x92)
-    CMD_GET_BUTTON = chr(0x94)
+    CMD_GET_BUTTON = chr(0x93)
 
     def __init__(self, *args, **kwargs):
         super(LEDStrip, self).__init__(*args, **kwargs)
@@ -263,7 +269,8 @@ if __name__ == '__main__':
     import time
     tail = 30
 
-    with Bus('/dev/ttyACM0') as bus:
+    with Bus('/dev/ttyACM2') as bus:
+        print bus.ping(0xFFFFFFFF)
         strip = LEDStrip(bus, 0xFFFFFFFF)
         strip.set_length(150)
         l = strip.get_length()
