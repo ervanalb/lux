@@ -75,7 +75,10 @@ static void send_id()
 
 static uint8_t flash_wait()
 {
-    while(FLASH->SR & FLASH_SR_BSY);
+    static volatile uint32_t a;
+    a = 0;
+    while(!FLASH->SR) a++;
+    while(FLASH->SR & FLASH_SR_BSY) a++;
     if(FLASH->SR & FLASH_SR_EOP) return 0;
     if(FLASH->SR & FLASH_SR_WRPERR) return 1;
     if(FLASH->SR & FLASH_SR_PGERR) return 2;
@@ -84,18 +87,24 @@ static uint8_t flash_wait()
 
 static uint8_t erase_flash(uint32_t addr)
 {
-    FLASH_Status r;
+    static volatile uint8_t r;
     __disable_irq();
     FLASH_Unlock();
 
-    FLASH_ClearFlag(FLASH_FLAG_BSY | FLASH_FLAG_EOP | FLASH_FLAG_PGERR | FLASH_FLAG_WRPERR);
+    static volatile uint16_t flash;
+    flash = FLASH->SR;
+
+    FLASH_ClearFlag(FLASH_FLAG_EOP | FLASH_FLAG_PGERR | FLASH_FLAG_WRPERR);
+
+    flash = FLASH->SR;
 
     FLASH->CR |= FLASH_CR_PER;
     FLASH->AR  = addr;
     FLASH->CR |= FLASH_CR_STRT;
- 
     r = flash_wait();
+    FLASH->CR &= FLASH_CR_PER;
 
+    flash = FLASH->SR;
     FLASH_Lock();
     __enable_irq();
 
@@ -118,7 +127,7 @@ static void erase_flash_cmd()
 static uint8_t write_flash(uint8_t* data, uint32_t addr, uint16_t len)
 {
     uint32_t i = 0;
-    uint8_t r = 0;
+    static volatile uint8_t r = 0;
     uint16_t halfword;
 
     __disable_irq();

@@ -1,8 +1,6 @@
 import struct
 import binascii
-import select
-import os
-import errno
+import serial
 
 class TimeoutError(Exception):
     pass
@@ -79,30 +77,26 @@ class Bus(object):
         self.close()
 
     def open(self):
-        self.s = os.open(self.dev, os.O_RDWR | os.O_NONBLOCK)
+        self.s = serial.Serial(self.dev, 3000000, timeout = self.timeout, writeTimeout = self.timeout, xonxoff = False)
 
     def close(self):
-        os.close(self.s)
+        self.s.close()
         self.s = None
 
     def lowlevel_write(self, data):
         data += '\0'
-        while data:
-            (r, w, e) = select.select([], [self.s], [], self.timeout)
-            if self.s in w:
-                len_written = os.write(self.s, data)
-                data = data[len_written:]
-            else:
-                raise TimeoutError("lux write timed out")
+        try:
+            self.s.write(data)
+        except serial.SerialTimeoutException as e:
+            raise TimeoutError("lux write timed out") # from e
 
     def lowlevel_read(self):
         while True:
             while '\0' not in self.rx:
-                (r, w, e) = select.select([self.s], [], [], self.timeout)
-                if self.s in r:
-                    self.rx += os.read(self.s, 4096)
-                else:
+                r = self.s.read()
+                if len(r) == 0:
                     raise TimeoutError("lux read timed out")
+                self.rx += r 
             while '\0' in self.rx:
                 frame, _null, self.rx = self.rx.partition('\0')
                 return frame
@@ -116,14 +110,13 @@ class Bus(object):
 
     def clear_rx(self):
         self.rx = ''
-        while True:
-            try:
-                os.read(self.s, 4096)
-            except OSError as e:
-                if e.errno == errno.EAGAIN:
-                    break
-                raise
-
+        t = self.s.timeout
+        try:
+            self.s.timeout = 0
+            self.s.read()
+        finally:
+            self.s.timeout = t
+   
     def write(self, destination, data):
         self.clear_rx()
         self.lowlevel_write(self.frame(destination, data))
@@ -269,7 +262,7 @@ if __name__ == '__main__':
     import time
     tail = 30
 
-    with Bus('/dev/ttyACM2') as bus:
+    with Bus('/dev/ttyACM0') as bus:
         print bus.ping(0xFFFFFFFF)
         strip = LEDStrip(bus, 0xFFFFFFFF)
         strip.set_length(150)
