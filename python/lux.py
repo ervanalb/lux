@@ -19,30 +19,30 @@ class Bus(object):
 
     @staticmethod
     def cobs_encode(data):
-        output=''
-        data+='\0'
-        ptr=0
+        output = b''
+        data += b'\0'
+        ptr = 0
         while ptr < len(data):
-            next_zero=data.index('\0',ptr)
-            if next_zero-ptr >= 254:
-                output+='\xFF'+data[ptr:ptr+254]
-                ptr+=254
+            next_zero = data.index(b'\0', ptr)
+            if next_zero - ptr >= 254:
+                output += b'\xFF' + data[ptr:ptr+254]
+                ptr += 254
             else:
-                output+=chr(next_zero-ptr+1)+data[ptr:next_zero]
-                ptr=next_zero+1
+                output += bytes((next_zero - ptr + 1,)) + data[ptr:next_zero]
+                ptr = next_zero + 1
         return output
 
     @staticmethod
     def cobs_decode(data):
-        output = ''
+        output = b''
         ptr = 0
         while ptr < len(data):
-            ctr=ord(data[ptr])
+            ctr = data[ptr]
             if ptr + ctr > len(data):
                 raise DecodeError("COBS decoding failed", repr(data))
             output += data[ptr + 1:ptr + ctr]
             if ctr < 255:
-                output += '\0'
+                output += b'\0'
             ptr += ctr
         if ptr != len(data):
             raise DecodeError("COBS decoding failed", repr(data))
@@ -84,7 +84,7 @@ class Bus(object):
         self.s = None
 
     def lowlevel_write(self, data):
-        data += '\0'
+        data += b'\0'
         try:
             self.s.write(data)
         except serial.SerialTimeoutException as e:
@@ -92,13 +92,13 @@ class Bus(object):
 
     def lowlevel_read(self):
         while True:
-            while '\0' not in self.rx:
+            while b'\0' not in self.rx:
                 r = self.s.read()
                 if len(r) == 0:
                     raise TimeoutError("lux read timed out")
                 self.rx += r 
-            while '\0' in self.rx:
-                frame, _null, self.rx = self.rx.partition('\0')
+            while b'\0' in self.rx:
+                frame, _null, self.rx = self.rx.partition(b'\0')
                 return frame
 
     def read(self):
@@ -109,7 +109,7 @@ class Bus(object):
                 pass
 
     def clear_rx(self):
-        self.rx = ''
+        self.rx = b''
         t = self.s.timeout
         try:
             self.s.timeout = 0
@@ -129,30 +129,30 @@ class Bus(object):
                 if rx_destination != 0:
                     raise DecodeError
                 return rx_data
-            except TimeoutError, DecodeError:
+            except (TimeoutError, DecodeError):
                 pass
         raise
 
     def ping(self, destination, *args, **kwargs):
-        return self.command(destination, '', *args, **kwargs)
+        return self.command(destination, b'', *args, **kwargs)
 
 class Device(object):
     # General Lux Commands
-    CMD_GET_ID = chr(0x00)
-    CMD_RESET = chr(0x01)
-    CMD_BOOTLOADER = chr(0x02)
+    CMD_GET_ID = b'\x00'
+    CMD_RESET = b'\x01'
+    CMD_BOOTLOADER = b'\x02'
 
     # Configuration commands
-    CMD_WRITE_CONFIG = chr(0x10)
+    CMD_WRITE_CONFIG = b'\x10'
 
-    CMD_GET_ADDR = chr(0x11)
-    CMD_SET_ADDR = chr(0x12)
+    CMD_GET_ADDR = b'\x11'
+    CMD_SET_ADDR = b'\x12'
 
-    CMD_GET_USERDATA = chr(0x13)
-    CMD_SET_USERDATA = chr(0x14)
+    CMD_GET_USERDATA = b'\x13'
+    CMD_SET_USERDATA = b'\x14'
 
-    CMD_GET_PKTCNT = chr(0x15)
-    CMD_RESET_PKTCNT = chr(0x16)
+    CMD_GET_PKTCNT = b'\x15'
+    CMD_RESET_PKTCNT = b'\x16'
 
     def __init__(self, bus, address):
         self.bus = bus
@@ -166,7 +166,7 @@ class Device(object):
 
     def ack_command(self, *args, **kwargs):
         result = self.command(*args, **kwargs)
-        if result != '':
+        if result != b'':
             raise DecodeError
 
     def get_id(self, *args, **kwargs):
@@ -179,9 +179,11 @@ class Device(object):
         """ Cause device to jump to bootloader """
         self.write(self.CMD_BOOTLOADER, *args, **kwargs)
 
-    def set_address(self, multi_addr, multi_mask, uni_addrs, *args, **kwargs):
-        uni_addrs += [Bus.MULTICAST] * (16 - len(uni_addrs))
-        self.ack_command(self.CMD_SET_ADDR + struct.pack("18I", multi_addr, multi_mask, *uni_addrs), *args, **kwargs)
+    def set_address(self, multicast_base = Bus.MULTICAST, multicast_mask = 0, unicast = None, *args, **kwargs):
+        if unicast is None:
+            unicast = []
+        unicast += [Bus.MULTICAST] * (16 - len(unicast))
+        self.ack_command(self.CMD_SET_ADDR + struct.pack("18I", multicast_base, multicast_mask, *unicast), *args, **kwargs)
 
     def get_address(self, *args, **kwargs):
         r = self.command(self.CMD_GET_ADDR, *args, **kwargs)
@@ -214,20 +216,20 @@ class Device(object):
 
 class LEDStrip(Device):
     # Strip-specific configuration
-    CMD_SET_LENGTH = chr(0x20)
-    CMD_GET_LENGTH = chr(0x21)
+    CMD_SET_LENGTH = b'\x20'
+    CMD_GET_LENGTH = b'\x21'
 
     # Strip-specific commands
-    CMD_FRAME = chr(0x90)
-    CMD_FRAME_ACK = chr(0x91)
+    CMD_FRAME = b'\x90'
+    CMD_FRAME_ACK = b'\x91'
 
-    CMD_SET_LED = chr(0x92)
-    CMD_GET_BUTTON = chr(0x93)
+    CMD_SET_LED = b'\x92'
+    CMD_GET_BUTTON = b'\x93'
 
     def __init__(self, *args, **kwargs):
         super(LEDStrip, self).__init__(*args, **kwargs)
         self.type_id = self.get_id()
-        if self.type_id not in {"WS2811 LED Strip", "LPD6803 LED Strip"}:
+        if self.type_id not in {b'WS2811 LED Strip', b'LPD6803 LED Strip'}:
             raise DeviceTypeError(self.type_id)
         self.get_length()
 
@@ -237,7 +239,7 @@ class LEDStrip(Device):
         return self.length
 
     def set_length(self, length, *args, **kwargs):
-        self.ack_command(self.CMD_SET_LENGTH + struct.pack("H", length))
+        self.ack_command(self.CMD_SET_LENGTH + struct.pack('H', length))
 
     def send_solid_frame(self, pixel, *args, **kwargs):
         self.send_frame([pixel] * self.length, *args, **kwargs)
@@ -245,7 +247,7 @@ class LEDStrip(Device):
     def send_frame(self, pixels, ack = False, *args, **kwargs):
         if len(pixels) != self.length:
             raise RuntimeError("Expected {0} pixels, got {1}".format(self.length, len(pixels)))
-        data = ''.join([chr(r) + chr(g) + chr(b) for (r,g,b) in pixels])
+        data = b''.join([bytes((int(r), int(g), int(b))) for (r, g, b) in pixels])
         if ack:
             self.command(self.CMD_FRAME_ACK + data)
         else:
@@ -263,9 +265,11 @@ if __name__ == '__main__':
     tail = 30
 
     with Bus('/dev/ttyACM0') as bus:
-        print bus.ping(0xFFFFFFFF)
-        strip = LEDStrip(bus, 0xFFFFFFFF)
-        strip.set_length(150)
+        print(bus.ping(0xFFFFFFFF))
+        strip = LEDStrip(bus, 0x1)
+        #strip.set_length(140)
+        #strip.set_address(unicast=[1])
+        #print(strip.get_address())
         l = strip.get_length()
 
         pos = 0

@@ -31,6 +31,5 @@ with b:
         t=time.time()-st
 
         frame = [hsl_to_rgb(rescale_h(ng((rescale_x(float(i)/l),rescale_y(float(i)/l)))),1.0,0.5) for i in range(l)]
-        print "send frame"
         strip.send_frame(frame)
         time.sleep(0.01)
