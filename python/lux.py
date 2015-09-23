@@ -130,8 +130,8 @@ class Bus(object):
                     raise DecodeError
                 return rx_data
             except (TimeoutError, DecodeError):
-                pass
-        raise
+                if r == retry - 1:
+                    raise
 
     def ping(self, destination, *args, **kwargs):
         return self.command(destination, b'', *args, **kwargs)
@@ -269,7 +269,7 @@ if __name__ == '__main__':
         strip = LEDStrip(bus, 0x1)
         #strip.set_length(140)
         #strip.set_address(unicast=[1])
-        #print(strip.get_address())
+        print(strip.get_address())
         l = strip.get_length()
 
         pos = 0
