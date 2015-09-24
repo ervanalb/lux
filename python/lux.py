@@ -266,10 +266,11 @@ if __name__ == '__main__':
 
     with Bus('/dev/ttyACM0') as bus:
         print(bus.ping(0xFFFFFFFF))
-        strip = LEDStrip(bus, 0x1)
+        strip = LEDStrip(bus, 0xFFFFFFFF)
         #strip.set_length(140)
-        #strip.set_address(unicast=[1])
-        print(strip.get_address())
+        #strip.set_address(unicast=[2])
+        #print(strip.get_address())
+        #strip.write_config()
         l = strip.get_length()
 
         pos = 0

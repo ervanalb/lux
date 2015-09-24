@@ -145,6 +145,8 @@ static uint8_t cobs_encode_and_send(uint8_t byte)
 
     if(cobs_encoder_fill_ptr == 255) goto write;
 
+    return 1;
+
     write:
     cobs_buffer[0] = cobs_encoder_fill_ptr;
     return write();
