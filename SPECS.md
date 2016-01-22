@@ -24,7 +24,7 @@ RS-485 is used for the data lines. Nodes and masters should implement the recomm
 
 Data link layer
 ---------------
-Lux packets are encoded using consistent-overhead byte stuffing (COBS). A NULL (out-of-band 0 byte) is placed at the beginning and end of a packet. A packet consists of three parts:
+Lux packets are encoded using consistent-overhead byte stuffing (COBS). A NULL (out-of-band 0 byte) is placed at the end of a packet. A packet consists of three parts:
 
 <table><tr>
  <td>Destination Address</td>
@@ -40,7 +40,7 @@ After the payload comes a 32-bit CRC of the entire packet (after COBS decoding.)
 
 Payload length is never explicitly stated. Instead, packets are null-teriminated. Payload length is defined as the packet length minus 8 bytes, to account for the address and checksum.
 
-Packets shorter than 8 bytes should be discarded, though not necessarily marked as corrupt. Because packets both start and end with a null, the decoder may interpret the data between packets as packets. On an ideal bus, these packets are of length 0 and do not indicate an error condition.
+Packets shorter than 8 bytes should be discarded, though not necessarily marked as corrupt. An optional feature of this protocol is to start (as well as end) packets with a null. When this happens, the decoder may interpret the data between packets as packets. On an ideal busimplementing this two-zero variant, these packets are of length 0 and do not indicate an error condition.
 
 MAC layer
 ---------

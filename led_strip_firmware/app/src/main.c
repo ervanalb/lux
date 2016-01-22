@@ -16,9 +16,6 @@ const char id[]="Lux LED Strip";
 uint8_t match_destination(uint8_t* dest);
 void rx_packet();
 
-// Has the button been pressed since the last query?
-char button_pressed;
-
 static union lux_command_frame *luxf = (union lux_command_frame *)lux_packet;
 
 void main()
@@ -32,13 +29,9 @@ void main()
     lux_fn_match_destination = &match_destination;
     lux_fn_rx = &rx_packet;
 
-    // Special Init
-    button_pressed = 0;
-
     for(;;)
     {
         lux_codec();
-        button_pressed |= button();
     }
 }
 
@@ -62,12 +55,12 @@ static void clear_destination()
     *(uint32_t*)lux_destination = 0;
 }
 
-static void send_ack(uint8_t code){
+static void send_ack()
+{
     lux_stop_rx();
     clear_destination();
 
-    lux_packet_length = 1;
-    lux_packet[0] = code;
+    lux_packet_length = 0;
 
     lux_start_tx();
 }
@@ -83,35 +76,49 @@ static void send_id()
     lux_start_tx();
 }
 
-static void send_button(){
+static void send_button()
+{
     lux_stop_rx();
     clear_destination();
 
     lux_packet_length = 1;
-    lux_packet[0] = button_pressed;
-
-    button_pressed = 0;
+    lux_packet[0] = button();
 
     lux_start_tx();
 }
 
-static uint8_t set_frame(){
+static uint8_t set_frame()
+{
     if(lux_packet_length != 3*cfg.strip_length+1) return 1;
     if(!strip_ready()) return 2;
     strip_write(luxf->carray.data);
     return 0;
 }
 
-static uint8_t set_led(){
-    if(lux_packet_length != 2) return 1;
-    if(luxf->csingle.data)
-        led_on();
-    else
-        led_off();
-    return 0;
+static void set_frame_ack()
+{
+    if(!set_frame())
+    {
+        send_ack();
+    }
 }
 
-static void send_addresses(){
+static void set_led()
+{
+    if(lux_packet_length != 2) return 1;
+    if(luxf->csingle.data)
+    {
+        led_on();
+    }
+    else
+    {
+        led_off();
+    }
+    send_ack();
+}
+
+static void send_addresses()
+{
     uint32_t *warray = lux_packet;
     lux_stop_rx();
     clear_destination();
@@ -124,7 +131,8 @@ static void send_addresses(){
     lux_start_tx();
 }
 
-static uint8_t set_addresses(){
+static void set_addresses()
+{
     if(lux_packet_length != 4*(UNICAST_ADDRESS_COUNT+2)+1) return 1;
 
     cfg.multicast_address = luxf->warray.data[0];
@@ -132,18 +140,20 @@ static uint8_t set_addresses(){
     memcpy(&cfg.unicast_addresses, &luxf->warray.data[2], 4*UNICAST_ADDRESS_COUNT);
 
     SOFT_WRITE_CONFIG;
-    return 0;
+    send_ack();
 }
 
-static uint8_t set_userdata(){
+static void set_userdata()
+{
     if(lux_packet_length > USERDATA_SIZE+1) return 1;
     memcpy(cfg.userdata, luxf->carray.data, lux_packet_length-1);
 
     SOFT_WRITE_CONFIG;
-    return 0;
+    send_ack();
 }
 
-static void send_userdata(){
+static void send_userdata()
+{
     lux_stop_rx();
     clear_destination();
 
@@ -153,17 +163,19 @@ static void send_userdata(){
     lux_start_tx();
 }
 
-static uint8_t set_strip_length(){
+static void set_strip_length()
+{
     uint32_t l = 0;
     if(lux_packet_length != sizeof(cfg.strip_length) + 1) return 1;
     if(luxf->ssingle.data > MAX_STRIP_LENGTH) return 2;
     cfg.strip_length = luxf->ssingle.data;
 
     SOFT_WRITE_CONFIG;
-    return 0;
+    send_ack();
 }
 
-static void send_strip_length(){
+static void send_strip_length()
+{
     lux_stop_rx();
     clear_destination();
 
@@ -173,7 +185,8 @@ static void send_strip_length(){
     lux_start_tx();
 }
 
-static void send_packet_counters(){
+static void send_packet_counters()
+{
     uint32_t *d = (uint32_t *) lux_packet;
 
     lux_stop_rx();
@@ -190,19 +203,26 @@ static void send_packet_counters(){
     lux_start_tx();
 }
 
+static void reset_packet_counters()
+{
+    lux_reset_counters();
+    send_ack();
+}
 
-void rx_packet() {
-
+void rx_packet()
+{
     // Currently, the lux packet gets entirely processed in this function
     // so we can release lux_packet immediately
     lux_packet_in_memory = 0;
 
-    if(lux_packet_length == 0){
+    if(lux_packet_length == 0)
+    {
         send_id();
         return;
     }
 
-    switch(luxf->ssingle.cmd) {
+    switch(luxf->ssingle.cmd)
+    {
         case CMD_RESET:
             reset(); // Never returns
         case CMD_BOOTLOADER:
@@ -216,18 +236,11 @@ void rx_packet() {
         case CMD_WRITE_CONFIG:
             write_config_to_flash();
             break;
-        case CMD_WRITE_CONFIG_ACK:
-            write_config_to_flash();
-            send_ack(0);
-            break;
         case CMD_GET_ID:
             send_id();
             break;
         case CMD_SET_LED:
             set_led();
-            break;
-        case CMD_SET_LED_ACK:
-            send_ack(set_led());
             break;
         case CMD_GET_BUTTON:
             send_button();
@@ -238,23 +251,14 @@ void rx_packet() {
         case CMD_SET_ADDR:
             set_addresses();
             break;
-        case CMD_SET_ADDR_ACK:
-            send_ack(set_addresses());
-            break;
         case CMD_SET_USERDATA:
             set_userdata();
-            break;
-        case CMD_SET_USERDATA_ACK:
-            send_ack(set_userdata());
             break;
         case CMD_GET_USERDATA:
             send_userdata();
             break;
         case CMD_SET_LENGTH:
             set_strip_length();
-            break;
-        case CMD_SET_LENGTH_ACK:
-            send_ack(set_strip_length());
             break;
         case CMD_GET_LENGTH:
             send_strip_length();
@@ -263,11 +267,7 @@ void rx_packet() {
             send_packet_counters();
             break;
         case CMD_RESET_PKTCNT:
-            lux_reset_counters();
-            break;
-        case CMD_RESET_PKTCNT_ACK:
-            lux_reset_counters();
-            send_ack(0);
+            reset_packet_counters();
             break;
     }
 }

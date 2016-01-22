@@ -139,23 +139,16 @@ static uint8_t cobs_encode_and_send(uint8_t byte)
 {
     lux_hal_crc(byte);
 
-    if(byte == 0)
-    {
-        goto write;
-    }
-    else
-    {
-        cobs_buffer[cobs_encoder_fill_ptr++]=byte;
-    }
-    if(cobs_encoder_fill_ptr == 256)
-    {
-        cobs_encoder_fill_ptr = 255;
-        goto write;
-    }
+    if(byte == 0) goto write;
+
+    cobs_buffer[cobs_encoder_fill_ptr++] = byte;
+
+    if(cobs_encoder_fill_ptr == 255) goto write;
+
     return 1;
 
     write:
-    cobs_buffer[0]=cobs_encoder_fill_ptr;
+    cobs_buffer[0] = cobs_encoder_fill_ptr;
     return write();
 }
 
@@ -166,8 +159,8 @@ static uint8_t cobs_encode_and_send(uint8_t byte)
 // can be performed.
 static uint8_t cobs_encode_flush()
 {
-    cobs_buffer[0]=cobs_encoder_fill_ptr;
-    cobs_buffer[cobs_encoder_fill_ptr++]=0;
+    cobs_buffer[0] = cobs_encoder_fill_ptr;
+    cobs_buffer[cobs_encoder_fill_ptr++] = 0;
     return write();
 }
 
@@ -334,7 +327,6 @@ void lux_stop_rx()
 void lux_start_tx()
 {
     // Busywait: wait for RTS to go low
-    for(volatile long i = 0; i < 500000; i++); //FIXME
     codec_state=ENCODE;
     encoder_state=ENCODER_START;
     lux_hal_enable_tx();
