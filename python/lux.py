@@ -88,15 +88,16 @@ class LuxBus(object):
 
     def clear_rx(self):
         self.rx = ""
+
         self.s.flushInput()
 
     def send_packet(self,destination,data):
-        time.sleep(0.01)
+        #time.sleep(0.01)
         self.s.setRTS(False)
         raw_data = self.frame(destination, data)
         self.s.write(raw_data)
         self.s.flush()
-        time.sleep(0.001)
+        #time.sleep(0.001)
         self.s.setRTS(True)
 
     def ping(self,destination):
@@ -273,7 +274,7 @@ if __name__ == '__main__':
     l = 194
     tail = 40
 
-    bus = LuxBus('/dev/ttyUSB0')
+    bus = LuxBus('/dev/ttyACM0')
     strip = LEDStrip(bus,0xFFFFFFFF)
     l = strip.length
 
