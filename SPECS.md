@@ -100,18 +100,18 @@ A commmon response is a simple *ACK* containing no other data. In this case, the
 
 #### Command Descriptions
 
-Name            | # Resp.   | Payload           | Description 
+Name            | Resp.     | Payload           | Description 
 ----------------|-----------|-------------------|-------------
-`RESET`         | 0         | None              | Reboot/reset the node
-`RESET_BL`      | 0         | None | *(Optional)* Reset & boot into bootloader mode
-`GET_ID`        | 1         | None | Equivalent to a zero-length packet. Respond with string containing node name.
-`GET_ADDR`      | 1         | None | 
-`SET_ADDR`      | 1 (ACK)   | | 
-`WRITE_CONFIG`  | 1         | | Flush configuration changes to nonvolatile storage
-`GET_PKTCNT`    | 1         | None |
-`RESET_PKTCNT`  | 1 (ACK)   | |
-`GET_USERDATA`  | 1         | None |
-`SET_USERDATA`  | 1 (ACK)   | | 
+`RESET`         | None      | None              | Reboot/reset the node
+`RESET_BL`      | None      | None | *(Optional)* Reset & boot into bootloader mode
+`GET_ID`        | Data      | None | Equivalent to a zero-length packet. Respond with string containing node name.
+`GET_ADDR`      | Data      | None | 
+`SET_ADDR`      | Ack       | | 
+`WRITE_CONFIG`  | Ack       | | Flush configuration changes to nonvolatile storage
+`GET_PKTCNT`    | Data      | None |
+`RESET_PKTCNT`  | Ack       | |
+`GET_USERDATA`  | Data      | None |
+`SET_USERDATA`  | Ack       | | 
 
 
 De-facto standards
