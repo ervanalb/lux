@@ -1,10 +1,14 @@
-#include "lux.h"
-#include "lux_hal_unix.h"
+#include "linux/lux.h"
 
 #include <stdlib.h>
+#include <fcntl.h>
 #include <string.h>
 #include <stdio.h>
+#include <errno.h>
+#include <sys/socket.h>
+#include <sys/time.h>
 
+/*
 uint8_t lux_fn_match_destination(uint8_t * dest) {
     return 1;
 }
@@ -29,5 +33,58 @@ int main(int argc, char ** argv) {
     for (;;) {
         lux_codec();
     }
+    return 0;
+}
+*/
+
+int main(void) {
+    //int fd = lux_network_open("127.0.0.1", 1365);
+    int fd = lux_serial_open();
+    if (fd < 0) {
+        printf("Error, no port: %s\n", strerror(errno));
+        return -1;
+    }
+    /*
+    int t = send(fd, "hello\n", 6, 0);
+    if (t < 0) {
+        printf("Error, cantsend: %s\n", strerror(errno));
+        return -1;
+    }
+    printf("sent!\n");
+    */
+
+    struct timeval t1, t2;
+
+    gettimeofday(&t1, NULL);
+    // ---- 
+    struct lux_packet packet = {
+        .destination = 0xFFFFFFFF,
+        .command = CMD_GET_ID,
+        .index = 0,
+        .payload_length = 0,
+    };
+
+    struct lux_packet response;
+
+    int rc = 0;
+    for (int i = 0; i < 10; i++)
+        rc |= lux_command(fd, &packet, 1, &response);
+    // ---- 
+    gettimeofday(&t2, NULL);
+
+    lux_close(fd);
+
+    long delta = (t2.tv_sec - t1.tv_sec) * 1000000 + (t2.tv_usec - t1.tv_usec);
+    printf("Time delta: %ld\n", delta);
+
+    if (rc < 0) {
+        printf("Error: %s\n", strerror(errno));
+        return -1;
+    }
+
+    printf("Recieved packet for %#08X; cmd=%#02X; idx=%d; plen=%d; data=",
+            response.destination, response.command, response.index, response.payload_length);
+    printf("'%.*s'\n", response.payload_length, response.payload);
+
     return 0;
 }

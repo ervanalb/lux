@@ -4,14 +4,14 @@
 APP_C_SRC  = $(wildcard app/src/*.c)
 BL_C_SRC   = $(wildcard bl/src/*.c)
 C_SRC  = $(wildcard lib/STM32F0xx_StdPeriph_Driver/src/*.c)
-C_SRC += lib/lux/lux.c
+C_SRC += lib/lux/embedded/lux.c
 
 APP_OBJECTS = $(patsubst %.c,%.o,$(C_SRC) $(APP_C_SRC)) app/src/startup.o
 BL_OBJECTS  = $(patsubst %.c,%.o,$(C_SRC) $(BL_C_SRC)) bl/src/startup.o
 
 LIBRARIES = 
 
-INC  = -Ilib/lux -Iinc
+INC  = -Ilib/lux -Ilib/lux/embedded -Iinc
 INC += -Ilib/CMSIS/Include -Ilib/CMSIS/Device/ST/STM32F0xx/Include
 INC += -Ilib/STM32F0xx_StdPeriph_Driver/inc
 APP_INC = -Iapp/inc

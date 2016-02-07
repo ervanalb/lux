@@ -230,8 +230,8 @@ class LEDStrip(Device):
 
     def __init__(self, *args, **kwargs):
         super(LEDStrip, self).__init__(*args, **kwargs)
-        self.type_id = self.get_id()
-        if self.type_id not in {b'WS2811 LED Strip', b'LPD6803 LED Strip'}:
+        self.type_id = str(self.get_id())
+        if self.type_id not in {'WS2811 LED Strip', 'LPD6803 LED Strip'}:
             raise DeviceTypeError(self.type_id)
         self.get_length()
 
