@@ -28,7 +28,7 @@ class Bus(object):
                 output += b'\xFF' + data[ptr:ptr+254]
                 ptr += 254
             else:
-                output += bytes((next_zero - ptr + 1,)) + data[ptr:next_zero]
+                output += bytearray((next_zero - ptr + 1,)) + data[ptr:next_zero]
                 ptr = next_zero + 1
         return output
 
@@ -99,7 +99,7 @@ class Bus(object):
                 self.rx += r 
             while b'\0' in self.rx:
                 frame, _null, self.rx = self.rx.partition(b'\0')
-                return frame
+                return bytearray(frame)
 
     def read(self):
         while True:
@@ -247,7 +247,7 @@ class LEDStrip(Device):
     def send_frame(self, pixels, ack = False, *args, **kwargs):
         if len(pixels) != self.length:
             raise RuntimeError("Expected {0} pixels, got {1}".format(self.length, len(pixels)))
-        data = b''.join([bytes((int(r), int(g), int(b))) for (r, g, b) in pixels])
+        data = b''.join([bytearray((int(r), int(g), int(b))) for (r, g, b) in pixels])
         if ack:
             self.command(self.CMD_FRAME_ACK + data)
         else:
