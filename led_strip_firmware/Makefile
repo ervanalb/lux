@@ -4,7 +4,7 @@
 APP_C_SRC  = $(wildcard app/src/*.c)
 BL_C_SRC   = $(wildcard bl/src/*.c)
 C_SRC  = $(wildcard lib/STM32F0xx_StdPeriph_Driver/src/*.c)
-C_SRC += $(wildcard lib/lux/*.c)
+C_SRC += lib/lux/lux.c
 
 APP_OBJECTS = $(patsubst %.c,%.o,$(C_SRC) $(APP_C_SRC)) app/src/startup.o
 BL_OBJECTS  = $(patsubst %.c,%.o,$(C_SRC) $(BL_C_SRC)) bl/src/startup.o

@@ -124,8 +124,9 @@ class Bus(object):
         self.lowlevel_write(packet)
         return crc
 
-    def ping(self, destination, *args, **kwargs):
-        return self.command(destination, self.CMD_GET_ID, 0, b'', *args, **kwargs)
+    def ping(self, destination):
+        self.write(destination, 0, b'', 0)
+        return self.read()
 
 class Device(object):
     # General Lux Commands
@@ -217,8 +218,8 @@ class Device(object):
 
 class LEDStrip(Device):
     # Strip-specific configuration
-    CMD_SET_LENGTH = b'\x20'
-    CMD_GET_LENGTH = b'\x21'
+    CMD_SET_LENGTH = b'\x9C'
+    CMD_GET_LENGTH = b'\x9D'
 
     # Strip-specific commands
     CMD_FRAME = b'\x90'
