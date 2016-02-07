@@ -218,15 +218,15 @@ class Device(object):
 
 class LEDStrip(Device):
     # Strip-specific configuration
-    CMD_SET_LENGTH = b'\x9C'
-    CMD_GET_LENGTH = b'\x9D'
+    CMD_SET_LENGTH = 0x9C
+    CMD_GET_LENGTH = 0x9D
 
     # Strip-specific commands
-    CMD_FRAME = b'\x90'
-    CMD_FRAME_ACK = b'\x91'
+    CMD_FRAME = 0x92
+    CMD_FRAME_ACK = 0x93
 
-    CMD_SET_LED = b'\x92'
-    CMD_GET_BUTTON = b'\x93'
+    CMD_SET_LED = 0x96
+    CMD_GET_BUTTON = 0x97
 
     def __init__(self, *args, **kwargs):
         super(LEDStrip, self).__init__(*args, **kwargs)
@@ -235,31 +235,34 @@ class LEDStrip(Device):
             raise DeviceTypeError(self.type_id)
         self.get_length()
 
-    def get_length(self, *args, **kwargs):
-        r = self.command(self.CMD_GET_LENGTH, *args, **kwargs)
+    def get_length(self):
+        r = self.command(self.CMD_GET_LENGTH, b'')
         self.length = struct.unpack("H", r)[0]
         return self.length
 
-    def set_length(self, length, *args, **kwargs):
-        self.ack_command(self.CMD_SET_LENGTH + struct.pack('H', length))
+    def set_length(self, length):
+        self.ack_command(self.CMD_SET_LENGTH, struct.pack('H', length))
 
     def send_solid_frame(self, pixel, *args, **kwargs):
         self.send_frame([pixel] * self.length, *args, **kwargs)
 
-    def send_frame(self, pixels, ack = False, *args, **kwargs):
+    def send_frame(self, pixels, ack = False):
         if len(pixels) != self.length:
             raise RuntimeError("Expected {0} pixels, got {1}".format(self.length, len(pixels)))
-        data = b''.join([bytearray((int(r), int(g), int(b))) for (r, g, b) in pixels])
+        data = bytearray()
+        for r,g,b in pixels:
+            data += bytearray((int(r), int(g), int(b)))
+
         if ack:
-            self.command(self.CMD_FRAME_ACK + data)
+            self.command(self.CMD_FRAME_ACK, data)
         else:
-            self.write(self.CMD_FRAME + data)
+            self.write(self.CMD_FRAME, data)
 
-    def set_led(self, state, *args, **kwargs):
-        self.ack_command(self.CMD_SET_LED + struct.pack('?', state), *args, **kwargs)
+    def set_led(self, state):
+        self.ack_command(self.CMD_SET_LED, struct.pack('?', state))
 
-    def get_button(self, *args, **kwargs):
-        r = self.command(self.CMD_GET_BUTTON, *args, **kwargs)
+    def get_button(self):
+        r = self.command(self.CMD_GET_BUTTON)
         return struct.unpack('?', r)[0]
 
 if __name__ == '__main__':

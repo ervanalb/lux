@@ -5,7 +5,7 @@
 #include <string.h>
 
 #ifdef WS2811
-const char id[]="WS2811 LED Strip F3";
+const char id[]="WS2811 LED Strip";
 #elif LPD6803
 const char id[]="LPD6803 LED Strip";
 #else
@@ -221,13 +221,16 @@ void lux_fn_rx()
                 reset(); // Never returns
             break;
         case CMD_FRAME:
+        case CMD_FRAME_HOLD:
             set_frame();
             break;
         case CMD_FRAME_ACK:
+        case CMD_FRAME_HOLD_ACK:
             set_frame_ack();
             break;
         case CMD_COMMIT_CONFIG:
             write_config_to_flash();
+            send_ack_crc();
             break;
         case CMD_SET_LED:
             set_led();
