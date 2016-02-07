@@ -3,12 +3,6 @@
 
 #include <stdint.h>
 
-// Number of bytes in the CRC
-#define LUX_HAL_CRC_SIZE 4
-
-// Extra space for CRC
-#define LUX_PACKET_MEMORY_ALLOCATED_SIZE (LUX_PACKET_MEMORY_SIZE+LUX_HAL_CRC_SIZE)
-
 // Enable / disable the receive / transmit hardware
 void lux_hal_enable_rx();
 void lux_hal_disable_rx();

@@ -22,35 +22,42 @@ class BootloaderDevice(lux.Device):
 
     PAGE_SIZE = 1024
 
-    BL_CMD_INVALIDATEAPP = chr(0x80)
-    BL_CMD_ERASE = chr(0x81)
-    BL_CMD_WRITE = chr(0x82)
-    BL_CMD_READ = chr(0x83)
+    BL_CMD_INVALIDATEAPP = 0x80
+    BL_CMD_BASEADDR = 0x81
+    BL_CMD_ERASE = 0x82
+    BL_CMD_WRITE = 0x83
+    BL_CMD_READ = 0x84
 
     def __init__(self, bus, *args, **kwargs):
         super(BootloaderDevice, self).__init__(bus, self.BOOTLOADER_ADDR, *args, **kwargs)
 
     def trigger_bootloader(self, addr = None, retry = 3):
         """ Check to see if device is in bootloader mode. """
-        self.type_id = self.get_id()
+        try:
+            self.type_id = str(self.get_id())
+        except lux.TimeoutError:
+            self.type_id = None
+
+        print "Found device: '{}'".format(self.type_id)
+
         if self.type_id not in self.VALID_IDS:
             if addr is None:
-                raise lux.DeviceTypeError("Device not in bootloader mode: {} @ 0x{:08x}".format(result, self.address))
+                raise lux.DeviceTypeError("Device not in bootloader mode: {} @ 0x{:08x}".format(self.type_id, self.address))
             # Try triggering bootloader
             dev = lux.Device(self.bus, addr)
-            for i in range(retry):
-                dev.bootloader()
-            time.sleep(0.05)
-            self.type_id = self.get_id()
+            #for i in range(retry):
+            dev.bootloader()
+            time.sleep(0.1)
+            self.type_id = str(self.get_id())
             if self.type_id not in self.VALID_IDS:
-                raise lux.DeviceTypeError("Could not put device into bootloader mode: {} @ 0x{:08x}".format(result, addr))
+                raise lux.DeviceTypeError("Could not put device into bootloader mode: {} @ 0x{:08x}".format(self.type_id, addr))
 
     def trigger_reset(self, retry = 3):
         for i in range(retry):
             self.reset()
         time.sleep(0.05)
 
-    def invalidate_app(self, *args, **kwargs):
+    def invalidate_app(self):
         """ Have the bootloader invalidate the app.
 
         The bootloader can invalidate the target app by overwriting
@@ -58,25 +65,34 @@ class BootloaderDevice(lux.Device):
         and reset vector. 
 
         Call this first before starting to flash a new image."""
-        self.ack_command(self.BL_CMD_INVALIDATEAPP, *args, **kwargs)
+        self.ack_command(self.BL_CMD_INVALIDATEAPP, b"")
 
-    def flash_erase(self, addr, *args, **kwargs):
+    def flash_baseaddr(self, addr):
+        """ Set the base address for read & write commands """
+        self.ack_command(self.BL_CMD_BASEADDR, struct.pack("I", addr))
+
+    def flash_erase(self, addr):
         """ Erase a page of flash at location `addr` """
-        self.ack_command(self.BL_CMD_ERASE + struct.pack('I', addr), *args, **kwargs)
+        self.ack_command(self.BL_CMD_ERASE, struct.pack('I', addr))
 
-    def flash_read(self, addr, length, *args, **kwargs):
-        """ Read a chunk of memory from the device at `addr` """
-        assert 0 <= length <= 1024, ValueError("Invalid length, must be <=1024")
-        return self.command(self.BL_CMD_READ + struct.pack('IH', addr, length), *args, **kwargs)
+    def flash_read(self, page_no):
+        """ Read a chunk of memory from the device around baseaddr """
+        return self.command(self.BL_CMD_READ, b"", index=page_no)
 
-    def flash_write(self, addr, data, *args, **kwargs):
+    class ValidationError(Exception):
+        pass
+
+    def flash_write(self, page_no, data):
         """ Write a chunk of data to flash memory at `addr` """
-        assert len(data) <= 1016, ValueError("Invalid length, must be <=1016")
+        assert len(data) <= 1024, ValueError("Invalid length, must be <=1016")
 
-        result = self.command(self.BL_CMD_WRITE + struct.pack("I", addr) + data, *args, **kwargs)
+        result, crc = self.command(self.BL_CMD_WRITE, data, index=page_no, get_crc=True)
 
         if result != data:
-            raise lux.CommandError("Validate after write failed: {}@0x{:08x}".format(length, addr))
+            if result[1:5] == crc:
+                raise lux.CommandError("Flash write command returned error code {}".format(result[0]))
+            else:
+                raise lux.ValidationError("Validate after write failed: {}, page #{}".format(len(data), page_no + 1))
 
 def flash_device(dev, lux_address, binary, start_address):
     CHUNK_SIZE = 512
@@ -92,23 +108,27 @@ def flash_device(dev, lux_address, binary, start_address):
     print "Invalidating app..."
     dev.invalidate_app()
 
-    firstend = lambda x: x.append(x.pop(0))
-
-    data_pages = zip(*[iter(data)]*dev.PAGE_SIZE)
-    addresses = [a * dev.PAGE_SIZE + start_address for a in range(len(data_pages))] 
-
-    # Move first page to end so first page is written last in case of error
-    firstend(data_pages)
-    firstend(addresses)
-
-    for data_page, addr in zip(data_pages, addresses):
-        print "Erasing and writing {:08x}...".format(addr)
-        dev.flash_erase(addr)
-        while data_page:
-            chunk, data_page = data_page[:CHUNK_SIZE], data_page[CHUNK_SIZE:]
-            print "Writing flash", hex(addr), len(chunk)
-            dev.flash_write(addr, ''.join(chunk))
-            addr += CHUNK_SIZE
+    dev.flash_baseaddr(start_address)
+    PAGE_SIZE = 1024
+    total_page_count = (len(data) + PAGE_SIZE - 1) / PAGE_SIZE
+    index = 0
+    while data:
+        page, data = data[:PAGE_SIZE], data[PAGE_SIZE:]
+        print "Writing flash {}/{} ({} bytes)".format(index + 1, total_page_count, len(page))
+        retry = 3
+        for i in range(retry):
+            try:
+                dev.flash_erase(start_address + PAGE_SIZE * index)
+                dev.get_id()
+                dev.flash_write(index, page)
+                break
+            except lux.CommandError as e:
+                print e
+                time.sleep(5)
+        else:
+            raise lux.CommandError("Unable to flash page #{}".format(index + 1))
+        time.sleep(1)
+        index += 1
 
     print "Done writing; resetting"
     dev.reset()

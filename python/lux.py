@@ -49,11 +49,11 @@ class Bus(object):
         return output[0:-1]
 
     @classmethod
-    def frame(cls, destination, data):
-        packet = struct.pack('<I', destination) + data
+    def frame(cls, destination, command, data, index=0):
+        packet = struct.pack('<IBB', destination, command, index) + data
         cs = binascii.crc32(packet) & ((1 << 32) - 1)
-        packet += struct.pack('<I', cs)
-        return cls.cobs_encode(packet)
+        cs_bytes = struct.pack('<I', cs)
+        return cls.cobs_encode(packet + cs_bytes), cs_bytes
 
     @classmethod
     def unframe(cls, packet):
@@ -61,13 +61,13 @@ class Bus(object):
         cs=binascii.crc32(packet) & ((1<<32)-1)
         if cs != 0x2144DF1C:
             raise DecodeError("BAD CRC: "+hex(cs), repr(packet))
-        return (struct.unpack('<I',packet[0:4])[0],packet[4:-4])
+        return struct.unpack('<IBB',packet[0:6]) + (packet[6:-4], packet[-4:])
 
     def __init__(self, device):
         self.s = None
         self.dev = device
         self.rx = b''
-        self.timeout = 0.1
+        self.timeout = 1.0
 
     def __enter__(self):
         self.open()
@@ -95,6 +95,7 @@ class Bus(object):
             while b'\0' not in self.rx:
                 r = self.s.read()
                 if len(r) == 0:
+                    print("timeout")
                     raise TimeoutError("lux read timed out")
                 self.rx += r 
             while b'\0' in self.rx:
@@ -117,90 +118,90 @@ class Bus(object):
         finally:
             self.s.timeout = t
    
-    def write(self, destination, data):
+    def write(self, destination, command, data, index=0):
         self.clear_rx()
-        self.lowlevel_write(self.frame(destination, data))
-
-    def command(self, destination, data, retry = 3):
-        for r in range(retry):
-            try:
-                self.write(destination, data)
-                rx_destination, rx_data = self.read()
-                if rx_destination != 0:
-                    raise DecodeError
-                return rx_data
-            except (TimeoutError, DecodeError):
-                if r == retry - 1:
-                    raise
+        packet, crc = self.frame(destination, command, data, index=index)
+        self.lowlevel_write(packet)
+        return crc
 
     def ping(self, destination, *args, **kwargs):
-        return self.command(destination, b'', *args, **kwargs)
+        return self.command(destination, self.CMD_GET_ID, 0, b'', *args, **kwargs)
 
 class Device(object):
     # General Lux Commands
-    CMD_GET_ID = b'\x00'
-    CMD_RESET = b'\x01'
-    CMD_BOOTLOADER = b'\x02'
+    CMD_GET_ID = 0x00
+    CMD_GET_DESCRIPTOR = 0x01
+    CMD_RESET = 0x02
+    #CMD_BOOTLOADER = 0x02
 
     # Configuration commands
-    CMD_WRITE_CONFIG = b'\x10'
+    CMD_COMMIT_CONFIG = 0x10
 
-    CMD_GET_ADDR = b'\x11'
-    CMD_SET_ADDR = b'\x12'
+    CMD_GET_ADDR = 0x11
+    CMD_SET_ADDR = 0x12
 
-    CMD_GET_USERDATA = b'\x13'
-    CMD_SET_USERDATA = b'\x14'
-
-    CMD_GET_PKTCNT = b'\x15'
-    CMD_RESET_PKTCNT = b'\x16'
+    CMD_GET_PKTCNT = 0x13
+    CMD_RESET_PKTCNT = 0x14
 
     def __init__(self, bus, address):
         self.bus = bus
         self.address = address
 
-    def command(self, *args, **kwargs):
-        return self.bus.command(self.address, *args, **kwargs)
+    def command(self, command, data, index=0, retry=3, get_crc=False):
+        for r in range(retry):
+            try:
+                crc = self.write(command=command, data=data, index=index)
+                rx_destination, rx_command, rx_index, rx_data, rx_crc = self.bus.read()
+                if rx_destination != 0:
+                    raise DecodeError
+                if rx_command != command or rx_index != index:
+                    raise DecodeError
+                return rx_data if not get_crc else (rx_data, crc)
+            except (TimeoutError, DecodeError):
+                if r == retry - 1:
+                    raise
+
+    def ack_command(self, *args, **kwargs):
+        kwargs["get_crc"] = True
+        response, crc = self.command(*args, **kwargs)
+        if response[1:5] == crc:
+            rc = response[0]
+            if rc == 0:
+                return # Success
+            else:
+                raise CommandError(rc)
+        else:
+            raise DecodeError
 
     def write(self, *args, **kwargs):
         return self.bus.write(self.address, *args, **kwargs)
 
-    def ack_command(self, *args, **kwargs):
-        result = self.command(*args, **kwargs)
-        if result != b'':
-            raise DecodeError
-
     def get_id(self, *args, **kwargs):
-        return self.command(self.CMD_GET_ID, *args, **kwargs)
+        return self.command(self.CMD_GET_ID, b'', *args, **kwargs)
 
-    def reset(self, *args, **kwargs):
-        self.write(self.CMD_RESET, *args, **kwargs)
+    def reset(self, flags=0):
+        self.write(self.CMD_RESET, bytearray((flags,)))
 
-    def bootloader(self, *args, **kwargs):
+    def bootloader(self):
         """ Cause device to jump to bootloader """
-        self.write(self.CMD_BOOTLOADER, *args, **kwargs)
+        self.reset(flags=0x01)
 
     def set_address(self, multicast_base = Bus.MULTICAST, multicast_mask = 0, unicast = None, *args, **kwargs):
         if unicast is None:
             unicast = []
         unicast += [Bus.MULTICAST] * (16 - len(unicast))
-        self.ack_command(self.CMD_SET_ADDR + struct.pack("18I", multicast_base, multicast_mask, *unicast), *args, **kwargs)
+        self.ack_command(self.CMD_SET_ADDR, struct.pack("18I", multicast_base, multicast_mask, *unicast), *args, **kwargs)
 
     def get_address(self, *args, **kwargs):
-        r = self.command(self.CMD_GET_ADDR, *args, **kwargs)
+        r = self.command(self.CMD_GET_ADDR, b'', *args, **kwargs)
         a = struct.unpack("18I", r)
         return a[0], a[1], a[2:]
 
-    def set_userdata(self, data, *args, **kwargs):
-        self.ack_command(self.CMD_SET_USERDATA + data[:32], *args, **kwargs)
-
-    def get_userdata(self, *args, **kwargs):
-        return self.command(self.CMD_GET_USERDATA, *args, **kwargs)
-
     def write_config(self, *args, **kwargs):
-        self.ack_command(self.CMD_WRITE_CONFIG, *args, **kwargs)
+        self.ack_command(self.CMD_COMMIT_CONFIG, b'', *args, **kwargs)
 
     def get_packet_stats(self, *args, **kwargs):
-        r = self.command(self.CMD_GET_PKTCNT, *args, **kwargs)
+        r = self.command(self.CMD_GET_PKTCNT, b'', *args, **kwargs)
         metrics = struct.unpack("IIIII", r)
         desc = (
                 "good",
@@ -212,7 +213,7 @@ class Device(object):
         return dict(zip(desc, metrics))
 
     def reset_packet_stats(self, *args, **kwargs):
-        self.ack_command(self.CMD_RESET_PKTCNT, *args, **kwargs)
+        self.ack_command(self.CMD_RESET_PKTCNT, b'', *args, **kwargs)
 
 class LEDStrip(Device):
     # Strip-specific configuration

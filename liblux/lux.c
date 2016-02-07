@@ -1,27 +1,16 @@
+#include <string.h>
 #include "lux.h"
 
 #include "lux_hal.h"
 
 // Global variables
 
-// Useful buffers for the application
-uint8_t lux_destination[LUX_DESTINATION_SIZE];
-uint8_t lux_packet[LUX_PACKET_MEMORY_ALLOCATED_SIZE];
-uint16_t lux_packet_length;
-
-// Counters for problematic data
-uint32_t lux_good_packet_counter;
-uint32_t lux_malformed_packet_counter;
-uint32_t lux_packet_overrun_counter;
-uint32_t lux_bad_checksum_counter;
-uint32_t lux_rx_interrupted_counter;
-
 // Flag indicating whether there is currently a received packet in lux_packet
 uint8_t lux_packet_in_memory;
-
-// Callback function pointers
-uint8_t (*lux_fn_match_destination)(uint8_t* dest);
-void (*lux_fn_rx)(); 
+// Global lux packet
+struct lux_packet lux_packet;
+// Global lux packet counters
+struct lux_counters lux_counters;
 
 // Local variables
 
@@ -30,6 +19,8 @@ static enum
 {
     CODEC_START,
     READ_DESTINATION,
+    READ_COMMAND,
+    READ_INDEX,
     READ_PAYLOAD,
     SKIP_CURRENT_PACKET,
     ENCODE,
@@ -41,14 +32,16 @@ static enum
 {
     ENCODER_START,
     WRITE_DESTINATION,
+    WRITE_COMMAND,
+    WRITE_INDEX,
     WRITE_PAYLOAD,
     WRITE_CRC,
     FLUSH,
 } encoder_state;
 
-// Pointer to current index in lux_packet
+// Pointer to current index in lux_packet.payload
 static int16_t packet_pointer;
-// Pointer to current index in lux_destination
+// Pointer to current index in lux_packet.destination
 static int8_t destination_pointer;
 // Temporary home for destination until we can be sure it matches
 static uint8_t tmp_destination[LUX_DESTINATION_SIZE];
@@ -201,23 +194,58 @@ void lux_codec()
                 }
                 if(destination_pointer == LUX_DESTINATION_SIZE)
                 {
-                    if((*lux_fn_match_destination)(tmp_destination))
+                    if(lux_fn_match_destination(tmp_destination))
                     {
                         if(lux_packet_in_memory)
                         {
-                            lux_packet_overrun_counter++;
+                            lux_counters.packet_overrun++;
                             goto skip_current_packet;
                         }
                         else
                         {
-                            for(destination_pointer=0;destination_pointer<LUX_DESTINATION_SIZE;destination_pointer++)
-                            {
-                                lux_destination[destination_pointer]=tmp_destination[destination_pointer];
-                            }
-                            goto read_payload;
+                            memcpy(lux_packet.destination, tmp_destination, sizeof(lux_packet.destination));
+                            goto read_command;
                         }
                     }
                     goto skip_current_packet;
+                }
+            }
+            break;
+
+        read_command:
+        codec_state = READ_COMMAND;
+        case READ_COMMAND:
+            while(lux_hal_bytes_to_read())
+            {
+                byte_read = lux_hal_read_byte();
+                if (!byte_read)
+                {
+                    lux_counters.malformed_packet++;
+                    goto read_destination;
+                }
+                if (cobs_decode(byte_read, &decoded_byte))
+                {
+                    lux_packet.command = decoded_byte;
+                    goto read_index;
+                }
+            }
+            break;
+
+        read_index:
+        codec_state = READ_INDEX;
+        case READ_INDEX:
+            while(lux_hal_bytes_to_read())
+            {
+                byte_read = lux_hal_read_byte();
+                if (!byte_read)
+                {
+                    lux_counters.malformed_packet++;
+                    goto read_destination;
+                }
+                if (cobs_decode(byte_read, &decoded_byte))
+                {
+                    lux_packet.index = decoded_byte;
+                    goto read_payload;
                 }
             }
             break;
@@ -233,25 +261,26 @@ void lux_codec()
                 {
                     if(lux_hal_crc_ok())
                     {
-                        lux_packet_length=packet_pointer-LUX_HAL_CRC_SIZE;
+                        lux_packet.payload_length=packet_pointer-LUX_CRC_SIZE;
+                        memcpy(lux_packet.crc, lux_packet.payload + lux_packet.payload_length, sizeof(lux_packet.crc));
                         lux_packet_in_memory=1;
-                        lux_good_packet_counter++;
-                        (*************lux_fn_rx)();
+                        lux_counters.good_packet++;
+                        lux_fn_rx();
                         if(codec_state == ENCODE) goto encode;
                         goto read_destination;
                     }
-                    lux_bad_checksum_counter++;
+                    lux_counters.bad_checksum++;
                     goto read_destination;
                 }
                 if(cobs_decode(byte_read,&decoded_byte))
                 {
                     if(packet_pointer < LUX_PACKET_MEMORY_ALLOCATED_SIZE)
                     {
-                        lux_packet[packet_pointer++]=decoded_byte;
+                        lux_packet.payload[packet_pointer++]=decoded_byte;
                     }
                     else
                     {
-                        lux_malformed_packet_counter++;
+                        lux_counters.malformed_packet++;
                         goto skip_current_packet;
                     }
                 }
@@ -279,24 +308,30 @@ void lux_codec()
                 case WRITE_DESTINATION:
                     while(destination_pointer<LUX_DESTINATION_SIZE)
                     {
-                        if(!cobs_encode_and_send(lux_destination[destination_pointer++])) break;
+                        if(!cobs_encode_and_send(lux_packet.destination[destination_pointer++])) goto encoder_stalled;
                     }
-                    packet_pointer=0;
-                    encoder_state=WRITE_PAYLOAD;
+                    encoder_state=WRITE_COMMAND;
+                case WRITE_COMMAND:
+                    if(!cobs_encode_and_send(lux_packet.command)) goto encoder_stalled;
+                    encoder_state = WRITE_INDEX;
+                case WRITE_INDEX:
+                    if(!cobs_encode_and_send(lux_packet.index)) goto encoder_stalled;
+                    encoder_state = WRITE_PAYLOAD;
+                    packet_pointer = 0;
                 case WRITE_PAYLOAD:
-                    while(packet_pointer<lux_packet_length)
+                    while(packet_pointer<lux_packet.payload_length)
                     {
-                        if(!cobs_encode_and_send(lux_packet[packet_pointer++])) break;
+                        if(!cobs_encode_and_send(lux_packet.payload[packet_pointer++])) goto encoder_stalled;
                     }
-                    lux_hal_write_crc(&lux_packet[packet_pointer]);
+                    lux_hal_write_crc(&lux_packet.payload[packet_pointer]);
                     encoder_state=WRITE_CRC;
                 case WRITE_CRC:
-                    while(packet_pointer<lux_packet_length+LUX_HAL_CRC_SIZE)
+                    while(packet_pointer<lux_packet.payload_length+LUX_CRC_SIZE)
                     {
-                        if(!cobs_encode_and_send(lux_packet[packet_pointer++])) break;
+                        if(!cobs_encode_and_send(lux_packet.payload[packet_pointer++])) goto encoder_stalled;
                     }
                     encoder_state=FLUSH;
-                    if(!cobs_encode_flush()) break; // flush COBS
+                    if(!cobs_encode_flush()) goto encoder_stalled; // Flush COBS
                 case FLUSH:
                     if(lux_hal_tx_flush())
                     {
@@ -307,6 +342,9 @@ void lux_codec()
             }
             break;
 
+        // XXX What is this for???
+        encoder_stalled:
+        codec_state = ENCODER_STALLED;
         case ENCODER_STALLED:
             if(write_continuation()) goto encode;
             break;
@@ -318,7 +356,7 @@ void lux_stop_rx()
 {
     if(lux_hal_bytes_to_read())
     {
-        lux_rx_interrupted_counter++;
+        lux_counters.rx_interrupted++;
     }
     lux_hal_disable_rx();
 }
@@ -334,9 +372,5 @@ void lux_start_tx()
 
 // Reset all of the good/bad packet counters to zero
 void lux_reset_counters(){
-    lux_good_packet_counter = 0;
-    lux_malformed_packet_counter = 0;
-    lux_packet_overrun_counter = 0;
-    lux_bad_checksum_counter = 0;
-    lux_rx_interrupted_counter = 0;
+    memset(&lux_counters, 0, sizeof(lux_counters));
 }

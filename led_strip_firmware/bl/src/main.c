@@ -22,19 +22,14 @@ const char id[]="Lux Bootloader";
 #endif
 #define ID_SIZE (sizeof(id)-1)
 
-uint8_t match_destination(uint8_t* dest);
-void rx_packet();
-
-uint32_t erased_page = 0;
+//uint32_t erased_page = 0;
+uint32_t flash_base_addr = 0;
 
 void main()
 {
     init();
 
     lux_init();
-
-    lux_fn_match_destination = &match_destination;
-    lux_fn_rx = &rx_packet;
 
     led_off();
 
@@ -44,21 +39,37 @@ void main()
     }
 }
 
-uint8_t match_destination(uint8_t* dest)
+uint8_t lux_fn_match_destination(uint8_t* dest)
 {
     return *(uint32_t*)dest == 0xFFFFFFFF || *(uint32_t*)dest == 0x80000000;
 }
 
 static void clear_destination()
 {
-    *(uint32_t*)lux_destination = 0;
+    memset(lux_packet.destination, 0, sizeof(lux_packet.destination));
 }
 
-static void send_ack()
+static void send_ack_crc()
 {
     lux_stop_rx();
     clear_destination();
-    lux_packet_length = 0;
+
+    lux_packet.payload_length = 5;
+    lux_packet.payload[0] = 0;
+    memcpy(&lux_packet.payload[1], lux_packet.crc, sizeof(lux_packet.crc));
+
+    lux_start_tx();
+}
+
+static void send_nak()
+{
+    lux_stop_rx();
+    clear_destination();
+
+    lux_packet.payload_length = 5;
+    lux_packet.payload[0] = 255;
+    memcpy(&lux_packet.payload[1], lux_packet.crc, sizeof(lux_packet.crc));
+
     lux_start_tx();
 }
 
@@ -67,8 +78,8 @@ static void send_id()
     lux_stop_rx();
     clear_destination();
 
-    lux_packet_length = ID_SIZE;
-    memcpy(lux_packet, id, ID_SIZE);
+    lux_packet.payload_length = ID_SIZE;
+    memcpy(lux_packet.payload, id, ID_SIZE);
 
     lux_start_tx();
 }
@@ -87,15 +98,18 @@ static uint8_t flash_wait()
 
 static uint8_t erase_flash(uint32_t addr)
 {
-    static volatile uint8_t r;
     __disable_irq();
     FLASH_Unlock();
 
-    static volatile uint16_t flash;
-    flash = FLASH->SR;
+    //static volatile uint16_t flash;
+    //flash = FLASH->SR;
 
     FLASH_ClearFlag(FLASH_FLAG_EOP | FLASH_FLAG_PGERR | FLASH_FLAG_WRPERR);
+    //FLASH_ClearFlag(FLASH_FLAG_BSY | FLASH_FLAG_WRPRTERR);
 
+    FLASH_Status rc = FLASH_ErasePage(addr);
+
+    /*
     flash = FLASH->SR;
 
     FLASH->CR |= FLASH_CR_PER;
@@ -105,116 +119,146 @@ static uint8_t erase_flash(uint32_t addr)
     FLASH->CR &= FLASH_CR_PER;
 
     flash = FLASH->SR;
+    */
+
     FLASH_Lock();
     __enable_irq();
 
-    if(!r) erased_page = addr;
-    return r; 
+    if (rc == FLASH_COMPLETE) return 0;
+    return 1; 
+}
+
+static void baseaddr_flash_cmd()
+{
+    if(lux_packet.payload_length != 4) goto fail;
+
+    memcpy(&flash_base_addr, &lux_packet.payload[0], sizeof(flash_base_addr));
+
+    send_ack_crc();
+    return;
+fail:
+    send_nak();
 }
 
 static void erase_flash_cmd()
 {
     uint32_t addr;
 
-    memcpy(&addr, &lux_packet[1], sizeof(uint32_t));
+    memcpy(&addr, &lux_packet.payload[0], sizeof(uint32_t));
 
-    if(lux_packet_length != 5) return;
-    if((FLASH_START > addr) || (addr + 1024 > FLASH_END)) return;
+    if(lux_packet.payload_length != 4) goto fail;
+    //if((FLASH_START > addr) || (addr + 1024 > FLASH_END)) goto fail;
+    if(!IS_FLASH_PROGRAM_ADDRESS(addr)) goto fail;
 
-    if(!erase_flash(addr)) send_ack();
+    if(erase_flash(addr) != 0) goto fail;
+        
+    send_ack_crc();
+    return;
+fail:
+    send_nak();
 }
 
 static uint8_t write_flash(uint8_t* data, uint32_t addr, uint16_t len)
 {
     uint32_t i = 0;
-    static volatile uint8_t r = 0;
+    //uint32_t word;
     uint16_t halfword;
+    FLASH_Status rc = FLASH_COMPLETE;
 
     __disable_irq();
     FLASH_Unlock();
 
-    FLASH_ClearFlag(FLASH_FLAG_BSY | FLASH_FLAG_EOP | FLASH_FLAG_PGERR | FLASH_FLAG_WRPERR); 
-    while(i < len)
+    FLASH_ClearFlag(FLASH_FLAG_EOP | FLASH_FLAG_PGERR | FLASH_FLAG_WRPERR);
+    //FLASH_ClearFlag(FLASH_FLAG_BSY | FLASH_FLAG_WRPRTERR);
+    //FLASH_ClearFlag(FLASH_FLAG_BSY | FLASH_FLAG_EOP | FLASH_FLAG_PGERR | FLASH_FLAG_WRPERR); 
+    while(i + 2 <= len)
     {
-        memcpy(&halfword, &data[i], sizeof(uint16_t));
+        /*
+        memcpy(&word, &data[i], 4);
+        rc = FLASH_ProgramWord(addr + i, word);
+        flash_wait();
+        i += 4;
+        if(rc != FLASH_COMPLETE) break;
+        */
+        memcpy(&halfword, &data[i], 2);
         FLASH->CR |= FLASH_CR_PG;
         *(__IO uint16_t*)(addr + i) = halfword;
-        r = flash_wait();
+        uint8_t r = flash_wait();
         FLASH->CR &= ~FLASH_CR_PG;
         i += 2;
-        if(r) break;
+        if (r) break;
     }
 
     FLASH_Lock();
     __enable_irq();
 
-    return r;
+    if (rc != FLASH_COMPLETE) return 1;
+    return 0;
 }
 
 static void write_flash_cmd()
 {
-    uint32_t addr;
-    uint16_t len = lux_packet_length - 5;
+    uint32_t addr = flash_base_addr + lux_packet.index * 1024;
+    uint16_t len = lux_packet.payload_length;
 
-    memcpy(&addr, &lux_packet[1], sizeof(uint32_t));
+    if(!(IS_FLASH_PROGRAM_ADDRESS(addr) && IS_FLASH_PROGRAM_ADDRESS(addr + len - 1))) goto fail;
+    //if((FLASH_START > addr) || (addr > FLASH_END)) goto fail;
+    //if((FLASH_START > (addr+len)) || ((addr+len) > FLASH_END)) goto fail;
+    // I think this is redundant @zbanks
+    //if((erased_page > (addr)) || ((addr+len) > (erased_page + 1024))) goto fail;
 
-    if(addr & 1 || len & 1) return;
-    if((FLASH_START > addr) || (addr > FLASH_END)) return;
-    if((FLASH_START > (addr+len)) || ((addr+len) > FLASH_END)) return;
-    if((erased_page > (addr)) || ((addr+len) > (erased_page + 1024))) return;
-
-    if(write_flash(&lux_packet[5], addr, len)) return;
+    if(write_flash(lux_packet.payload, addr, len)) goto fail;
 
     lux_stop_rx();
     clear_destination();
 
-    lux_packet_length = len;
-    memcpy(lux_packet, (uint16_t*)addr, len);
+    lux_packet.payload_length = len;
+    memcpy(lux_packet.payload, (void *) addr, len);
 
     lux_start_tx();
+    return;
+fail:
+    send_nak();
 }
 
 static void read_flash_cmd()
 {
-    uint32_t addr;
-    uint16_t len;
+    uint32_t addr = flash_base_addr + lux_packet.index * 1024;
+    uint16_t len = 1024;
 
-    memcpy(&addr, &lux_packet[1], sizeof(uint32_t));
-    memcpy(&len, &lux_packet[5], sizeof(uint16_t));
-
-    if(lux_packet_length != 7) return;
-    if(addr & 1 || len & 1) return;
-    if(len > LUX_PACKET_MEMORY_SIZE) return;
-    if((FLASH_START > addr) || (addr > FLASH_END)) return;
-    if((FLASH_START > (addr+len)) || ((addr+len) > FLASH_END)) return;
+    if(lux_packet.payload_length != 0) goto fail;
+    if(len > LUX_PACKET_MEMORY_SIZE) goto fail;
+    if((FLASH_START > addr) || (addr > FLASH_END)) goto fail;
+    if((FLASH_START > (addr+len)) || ((addr+len) > FLASH_END)) goto fail;
 
     lux_stop_rx();
     clear_destination();
 
-    lux_packet_length = len;
-    memcpy(lux_packet, (uint16_t *) addr, len);
+    lux_packet.payload_length = len;
+    memcpy(lux_packet.payload, (void *) addr, len);
 
     lux_start_tx();
+    return;
+fail:
+    send_nak();
 }
 
-static void invalidate_app()
+static void invalidate_app_cmd()
 {
-    if(erase_flash(FLASH_START)) return;
-    if(write_flash((uint8_t*)ISR_START, FLASH_START, 1024)) return;
-    send_ack();
+    if(erase_flash(FLASH_START)) goto fail;
+    if(write_flash((uint8_t*)ISR_START, FLASH_START, 1024)) goto fail;
+
+    send_ack_crc();
+    return;
+fail:
+    send_nak();
 }
 
-void rx_packet()
+void lux_fn_rx()
 {
     lux_packet_in_memory = 0;
 
-    if(lux_packet_length == 0)
-    {
-        send_id();
-        return;
-    }
-
-    switch(lux_packet[0])
+    switch(lux_packet.command)
     {
         case CMD_RESET:
             reset(); // Never returns
@@ -222,7 +266,10 @@ void rx_packet()
             send_id();
             break;
         case CMD_INVALIDATEAPP:
-            invalidate_app();
+            invalidate_app_cmd();
+            break;
+        case CMD_FLASH_BASEADDR:
+            baseaddr_flash_cmd();
             break;
         case CMD_FLASH_ERASE:
             erase_flash_cmd();

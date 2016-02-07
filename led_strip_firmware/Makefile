@@ -4,14 +4,14 @@
 APP_C_SRC  = $(wildcard app/src/*.c)
 BL_C_SRC   = $(wildcard bl/src/*.c)
 C_SRC  = $(wildcard lib/STM32F0xx_StdPeriph_Driver/src/*.c)
-C_SRC += $(wildcard lib/lux/src/*.c)
+C_SRC += $(wildcard lib/lux/*.c)
 
 APP_OBJECTS = $(patsubst %.c,%.o,$(C_SRC) $(APP_C_SRC)) app/src/startup.o
 BL_OBJECTS  = $(patsubst %.c,%.o,$(C_SRC) $(BL_C_SRC)) bl/src/startup.o
 
 LIBRARIES = 
 
-INC  = -Ilib/lux/inc -Iinc
+INC  = -Ilib/lux -Iinc
 INC += -Ilib/CMSIS/Include -Ilib/CMSIS/Device/ST/STM32F0xx/Include
 INC += -Ilib/STM32F0xx_StdPeriph_Driver/inc
 APP_INC = -Iapp/inc
@@ -85,10 +85,10 @@ stload_full: combined.bin
 sterase:
 	st-flash erase
 luxload: app.bin
-	python ../python/luxflash.py /dev/ttyUSB0 0x08000000 app.bin 
+	python ../python/luxflash.py /dev/ttyACM0 0x08000000 app.bin 
 luxload1: app.bin
-	python ../python/luxflash.py /dev/ttyUSB1 0x08000000 app.bin
+	python ../python/luxflash.py /dev/ttyACM1 0x08000000 app.bin
 luxload2: app.bin
-	python ../python/luxflash.py /dev/ttyUSB2 0x08000000 app.bin
+	python ../python/luxflash.py /dev/ttyACM2 0x08000000 app.bin
 
 

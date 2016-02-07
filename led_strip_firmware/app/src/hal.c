@@ -2,6 +2,8 @@
 #include "lux_hal.h"
 #include "stm32f0xx.h"
 
+#include <string.h>
+
 #define SERIAL_BUFFER_SIZE 512
 
 static DMA_InitTypeDef tx_DMA_InitStructure;
@@ -298,9 +300,6 @@ void lux_hal_write_crc(uint8_t* ptr)
 {
     uint32_t crc;
     crc=~CRC->DR;
-    for(int i=0;i<LUX_HAL_CRC_SIZE;i++)
-    {
-        ptr[i]=((uint8_t*)&crc)[i];
-    }
+    memcpy(ptr, &crc, sizeof(crc));
 }
 

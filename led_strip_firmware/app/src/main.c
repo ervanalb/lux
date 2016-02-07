@@ -5,18 +5,13 @@
 #include <string.h>
 
 #ifdef WS2811
-const char id[]="WS2811 LED Strip";
+const char id[]="WS2811 LED Strip F3";
 #elif LPD6803
 const char id[]="LPD6803 LED Strip";
 #else
 const char id[]="Lux LED Strip";
 #endif
 #define ID_SIZE (sizeof(id)-1)
-
-uint8_t match_destination(uint8_t* dest);
-void rx_packet();
-
-static union lux_command_frame *luxf = (union lux_command_frame *)lux_packet;
 
 void main()
 {
@@ -26,8 +21,8 @@ void main()
     lux_init();
     read_config_from_flash();
 
-    lux_fn_match_destination = &match_destination;
-    lux_fn_rx = &rx_packet;
+    //lux_fn_match_destination = &match_destination;
+    //lux_fn_rx = &rx_packet;
 
     for(;;)
     {
@@ -35,7 +30,7 @@ void main()
     }
 }
 
-uint8_t match_destination(uint8_t* dest)
+uint8_t lux_fn_match_destination(uint8_t* dest)
 {
     //return !!(*(uint32_t*)dest & 0x01);
     uint32_t addr = *(uint32_t *)dest;
@@ -52,15 +47,29 @@ uint8_t match_destination(uint8_t* dest)
 
 static void clear_destination()
 {
-    *(uint32_t*)lux_destination = 0;
+    memset(lux_packet.destination, 0, sizeof(lux_packet.destination));
 }
 
-static void send_ack()
+static void send_ack_crc()
 {
     lux_stop_rx();
     clear_destination();
 
-    lux_packet_length = 0;
+    lux_packet.payload_length = 5;
+    lux_packet.payload[0] = 0;
+    memcpy(&lux_packet.payload[1], lux_packet.crc, sizeof(lux_packet.crc));
+
+    lux_start_tx();
+}
+
+static void send_nak()
+{
+    lux_stop_rx();
+    clear_destination();
+
+    lux_packet.payload_length = 5;
+    lux_packet.payload[0] = 255;
+    memcpy(&lux_packet.payload[1], lux_packet.crc, sizeof(lux_packet.crc));
 
     lux_start_tx();
 }
@@ -70,8 +79,8 @@ static void send_id()
     lux_stop_rx();
     clear_destination();
 
-    lux_packet_length = ID_SIZE;
-    memcpy(lux_packet, id, ID_SIZE);
+    lux_packet.payload_length = ID_SIZE;
+    memcpy(lux_packet.payload, id, ID_SIZE);
 
     lux_start_tx();
 }
@@ -81,32 +90,33 @@ static void send_button()
     lux_stop_rx();
     clear_destination();
 
-    lux_packet_length = 1;
-    lux_packet[0] = button();
+    lux_packet.payload_length = 4;
+    uint16_t button_count = button();
+    memcpy(lux_packet.payload, &button_count, sizeof(button_count));
 
     lux_start_tx();
 }
 
 static uint8_t set_frame()
 {
-    if(lux_packet_length != 3*cfg.strip_length+1) return 1;
+    if(lux_packet.payload_length != 3*cfg.strip_length) return 1;
     if(!strip_ready()) return 2;
-    strip_write(luxf->carray.data);
+    strip_write(lux_packet.payload);
     return 0;
 }
 
 static void set_frame_ack()
 {
-    if(!set_frame())
-    {
-        send_ack();
-    }
+    if(set_frame() == 0)
+        send_ack_crc();
+    else
+        send_nak();
 }
 
 static void set_led()
 {
-    if(lux_packet_length != 2) return 1;
-    if(luxf->csingle.data)
+    if(lux_packet.payload_length != 1) goto fail;
+    if(lux_packet.payload[0])
     {
         led_on();
     }
@@ -114,64 +124,54 @@ static void set_led()
     {
         led_off();
     }
-    send_ack();
+    send_ack_crc();
+    return;
+fail:
+    send_nak();
 }
 
 static void send_addresses()
 {
-    uint32_t *warray = lux_packet;
     lux_stop_rx();
     clear_destination();
 
-    lux_packet_length = 4*(UNICAST_ADDRESS_COUNT +2);
-    memcpy(warray+0, &cfg.multicast_address, 4);
-    memcpy(warray+1, &cfg.multicast_address_mask, 4);
-    memcpy(warray+2, &cfg.unicast_addresses, 4*UNICAST_ADDRESS_COUNT);
+    lux_packet.payload_length = 4*(UNICAST_ADDRESS_COUNT + 2);
+    memcpy(&lux_packet.payload[0], &cfg.multicast_address, 4);
+    memcpy(&lux_packet.payload[4], &cfg.multicast_address_mask, 4);
+    memcpy(&lux_packet.payload[8], &cfg.unicast_addresses, 4*UNICAST_ADDRESS_COUNT);
 
     lux_start_tx();
 }
 
 static void set_addresses()
 {
-    if(lux_packet_length != 4*(UNICAST_ADDRESS_COUNT+2)+1) return 1;
+    if(lux_packet.payload_length != 4*(UNICAST_ADDRESS_COUNT+2)) goto fail;
 
-    cfg.multicast_address = luxf->warray.data[0];
-    cfg.multicast_address_mask = luxf->warray.data[1];
-    memcpy(&cfg.unicast_addresses, &luxf->warray.data[2], 4*UNICAST_ADDRESS_COUNT);
-
-    SOFT_WRITE_CONFIG;
-    send_ack();
-}
-
-static void set_userdata()
-{
-    if(lux_packet_length > USERDATA_SIZE+1) return 1;
-    memcpy(cfg.userdata, luxf->carray.data, lux_packet_length-1);
+    memcpy(&cfg.multicast_address, &lux_packet.payload[0], 4);
+    memcpy(&cfg.multicast_address_mask, &lux_packet.payload[4], 4);
+    memcpy(cfg.unicast_addresses, &lux_packet.payload[8], 4*UNICAST_ADDRESS_COUNT);
 
     SOFT_WRITE_CONFIG;
-    send_ack();
-}
-
-static void send_userdata()
-{
-    lux_stop_rx();
-    clear_destination();
-
-    lux_packet_length = USERDATA_SIZE;
-    memcpy(lux_packet, cfg.userdata, USERDATA_SIZE);
-
-    lux_start_tx();
+    send_ack_crc();
+    return;
+fail:
+    send_nak();
 }
 
 static void set_strip_length()
 {
-    uint32_t l = 0;
-    if(lux_packet_length != sizeof(cfg.strip_length) + 1) return 1;
-    if(luxf->ssingle.data > MAX_STRIP_LENGTH) return 2;
-    cfg.strip_length = luxf->ssingle.data;
+    if(lux_packet.payload_length != sizeof(cfg.strip_length)) goto fail;
+
+    uint16_t l = 0;
+    memcpy(&l, lux_packet.payload, sizeof(l));
+    if(l > MAX_STRIP_LENGTH) goto fail;
+    cfg.strip_length = l;
 
     SOFT_WRITE_CONFIG;
-    send_ack();
+    send_ack_crc();
+    return;
+fail:
+    send_nak();
 }
 
 static void send_strip_length()
@@ -179,26 +179,19 @@ static void send_strip_length()
     lux_stop_rx();
     clear_destination();
 
-    lux_packet_length = sizeof(cfg.strip_length);
-    memcpy(lux_packet, &cfg.strip_length, sizeof(cfg.strip_length));
+    lux_packet.payload_length = sizeof(cfg.strip_length);
+    memcpy(lux_packet.payload, &cfg.strip_length, sizeof(cfg.strip_length));
 
     lux_start_tx();
 }
 
 static void send_packet_counters()
 {
-    uint32_t *d = (uint32_t *) lux_packet;
-
     lux_stop_rx();
     clear_destination();
 
-    lux_packet_length = 4 * 5;
-
-    *d++ = lux_good_packet_counter;
-    *d++ = lux_malformed_packet_counter;
-    *d++ = lux_packet_overrun_counter;
-    *d++ = lux_bad_checksum_counter;
-    *d++ = lux_rx_interrupted_counter;
+    lux_packet.payload_length = sizeof(lux_counters);
+    memcpy(lux_packet.payload, &lux_counters, sizeof(lux_counters));
 
     lux_start_tx();
 }
@@ -206,43 +199,40 @@ static void send_packet_counters()
 static void reset_packet_counters()
 {
     lux_reset_counters();
-    send_ack();
+    send_ack_crc();
 }
 
-void rx_packet()
+void lux_fn_rx()
 {
     // Currently, the lux packet gets entirely processed in this function
     // so we can release lux_packet immediately
     lux_packet_in_memory = 0;
 
-    if(lux_packet_length == 0)
+    switch(lux_packet.command)
     {
-        send_id();
-        return;
-    }
-
-    switch(luxf->ssingle.cmd)
-    {
+        case CMD_GET_ID:
+        case CMD_GET_DESCRIPTOR:
+            send_id();
+            break;
         case CMD_RESET:
-            reset(); // Never returns
-        case CMD_BOOTLOADER:
-            bootloader(); // Never returns
+            if (lux_packet.payload[0] & 0x1)
+                bootloader(); // Never returns
+            else
+                reset(); // Never returns
+            break;
         case CMD_FRAME:
             set_frame();
             break;
         case CMD_FRAME_ACK:
-            send_ack(set_frame());
+            set_frame_ack();
             break;
-        case CMD_WRITE_CONFIG:
+        case CMD_COMMIT_CONFIG:
             write_config_to_flash();
-            break;
-        case CMD_GET_ID:
-            send_id();
             break;
         case CMD_SET_LED:
             set_led();
             break;
-        case CMD_GET_BUTTON:
+        case CMD_GET_BUTTON_COUNT:
             send_button();
             break;
         case CMD_GET_ADDR:
@@ -250,12 +240,6 @@ void rx_packet()
             break;
         case CMD_SET_ADDR:
             set_addresses();
-            break;
-        case CMD_SET_USERDATA:
-            set_userdata();
-            break;
-        case CMD_GET_USERDATA:
-            send_userdata();
             break;
         case CMD_SET_LENGTH:
             set_strip_length();
