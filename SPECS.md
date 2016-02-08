@@ -52,7 +52,11 @@ Lux uses UDP for sending data over the Internet/LAN. Lux does not specify which 
 Common Layers
 -------------
 ### Data Link Layer
-Lux packets are encoded using consistent-overhead byte stuffing (COBS). A NULL (out-of-band 0 byte) is placed at the end of a packet. A packet consists of three parts:
+Lux packets are encoded using consistent-overhead byte stuffing (COBS). A NULL (out-of-band 0 byte) is placed at the end of a packet. 
+
+Multi-byte values are transmitted in little-endian format (*not* "network"/big-endian!)
+
+A packet consists of five parts:
 
 <table><tr>
  <td>Destination Address <br> (4&nbsp;bytes)</td>
@@ -96,23 +100,26 @@ In keeping with the MAC, nodes can only transmit responses -- they cannot "push"
 
 In a response, the destination is set to `0x00000000`, and the `command` and `index` fields are copied from the request packet.
 
-A commmon response is a simple *ACK* containing no other data. In this case, the first byte of the payload is set to `0x00`, optionally followed by the CRC from the request packet.
+A commmon response is a simple *ACK* containing no other data. In this case, the first byte of the payload is set to `0x00`, followed by the CRC from the request packet. Alternatively, in the case of an error (*NAK*), the response consists of a non-zero error code, followed by the CRC of the request packet (as in an *ACK*).
 
 #### Command Descriptions
 
 Name            | Resp.     | Payload           | Description 
 ----------------|-----------|-------------------|-------------
-`RESET`         | None      | None              | Reboot/reset the node
-`RESET_BL`      | None      | None | *(Optional)* Reset & boot into bootloader mode
-`GET_ID`        | Data      | None | Equivalent to a zero-length packet. Respond with string containing node name.
-`GET_ADDR`      | Data      | None | 
-`SET_ADDR`      | Ack       | | 
-`WRITE_CONFIG`  | Ack       | | Flush configuration changes to nonvolatile storage
-`GET_PKTCNT`    | Data      | None |
-`RESET_PKTCNT`  | Ack       | |
-`GET_USERDATA`  | Data      | None |
-`SET_USERDATA`  | Ack       | | 
+`RESET`         | None      | `flags`, 1 byte   | Reboot/reset the node. `flags` are implementation-specific.
+`GET_ID`        | Data      | None              | Respond with string containing node name. Identifies implementation running on node.
+`GET_DESCRIPTOR`| Data      | None              | Respond with string containing node name. Identifies implementation running on node.
+`GET_ADDR`      | Data      | None              | 72 byte address struct, each `u32`: { `mcast_addr`, `mcast_mask`, `unicast_addrs[16]` }
+`SET_ADDR`      | Ack       | `addrs`, 72 bytes | See `GET_ADDR`
+`WRITE_CONFIG`  | Ack       | None              | Flush configuration changes to nonvolatile storage
+`GET_PKTCNT`    | Data      | None              | 20 byte counter struct, each `u32`: { `good`, `malformed`, `overrun`, `bad_crc`, `rx_interrupted` }
+`RESET_PKTCNT`  | Ack       | None              | Reset all packet counters to 0
 
+#### `index`
+
+In some cases, it is desirable for a command to transmit more than 1024 bytes. The `index` parameter allows bulk transfers (up to 256kB) by selecting a slice of a request/response.
+
+If a command requires multiple packets, it is important to note that there is no "transaction" -- the node is not required to maintain state. As a result a node does not need to keep track of which segements it has sent or recieved.
 
 De-facto standards
 ------------------
