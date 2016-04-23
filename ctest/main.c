@@ -39,7 +39,8 @@ int main(int argc, char ** argv) {
 
 int main(void) {
     //int fd = lux_network_open("127.0.0.1", 1365);
-    int fd = lux_serial_open();
+    int fd = lux_network_open("192.168.0.19", 1365);
+    //int fd = lux_serial_open();
     if (fd < 0) {
         printf("Error, no port: %s\n", strerror(errno));
         return -1;
@@ -72,7 +73,6 @@ int main(void) {
     // ---- 
     gettimeofday(&t2, NULL);
 
-    lux_close(fd);
 
     long delta = (t2.tv_sec - t1.tv_sec) * 1000000 + (t2.tv_usec - t1.tv_usec);
     printf("Time delta: %ld\n", delta);
@@ -86,5 +86,57 @@ int main(void) {
             response.destination, response.command, response.index, response.payload_length);
     printf("'%.*s'\n", response.payload_length, response.payload);
 
+    struct lux_packet packet2 = {
+        .destination = 0xFFFFFFFF,
+        .command = CMD_GET_PKTCNT,
+        .index = 0,
+        .payload_length = 0,
+    };
+
+    /*
+    struct lux_packet packet3 = {
+        .destination = 0xFFFFFFFF,
+        .command = CMD_SET_LENGTH,
+        .index = 0,
+        .payload_length = 2,
+        .payload = {140, 0}
+    };
+
+    rc = lux_command(fd, &packet3, 1, &response);
+    if (rc < 0) {
+        printf("Error: %s\n", strerror(errno));
+        return -1;
+    }
+    */
+    /*
+    packet3.command = CMD_COMMIT_CONFIG;
+    packet3.payload_length = 0;
+    rc = lux_command(fd, &packet3, 1, &response);
+    if (rc < 0) {
+        printf("Error: %s\n", strerror(errno));
+        return -1;
+    }
+    */
+
+
+    rc = lux_command(fd, &packet2, 1, &response);
+    if (rc < 0) {
+        printf("Error: %s\n", strerror(errno));
+        return -1;
+    }
+
+    printf("Recieved packet for %#08X; cmd=%#02X; idx=%d; plen=%d; data=",
+            response.destination, response.command, response.index, response.payload_length);
+    uint32_t *x = (uint32_t *) response.payload;
+    /*
+    uint32_t good_packet;
+    uint32_t malformed_packet;
+    uint32_t packet_overrun;
+    uint32_t bad_checksum;
+    uint32_t rx_interrupted;
+    */
+    printf("good:%d malfm:%d ovrun:%d badcrc:%d rxint:%d\n", x[0], x[1], x[2], x[3], x[4]);
+
+    lux_close(fd);
     return 0;
 }
