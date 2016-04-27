@@ -85,6 +85,27 @@ IdModule  = SA0603;
 EndCmp
 
 BeginCmp
+TimeStamp = /556BE816/556C536A;
+Reference = C13;
+ValeurCmp = C;
+IdModule  = SA0603;
+EndCmp
+
+BeginCmp
+TimeStamp = /556BE816/556C536A;
+Reference = C14;
+ValeurCmp = C;
+IdModule  = SA0603;
+EndCmp
+
+BeginCmp
+TimeStamp = /556BE816/556C536A;
+Reference = C15;
+ValeurCmp = C;
+IdModule  = SA0603;
+EndCmp
+
+BeginCmp
 TimeStamp = /556C5F74;
 Reference = CON1;
 ValeurCmp = 48V;

@@ -1,0 +1,31 @@
+M48
+;DRILL file {Pcbnew (2013-mar-13)-testing} date Mon 02 Feb 2015 05:19:29 PM EST
+;FORMAT={-:-/ absolute / inch / decimal}
+FMAT,2
+INCH,TZ
+T1C0.028
+T2C0.032
+%
+G90
+G05
+M72
+T1
+X6.1Y-3.4
+X6.1Y-4.
+X6.2Y-3.4
+X6.2Y-4.
+X6.3Y-3.4
+X6.3Y-4.
+X6.4Y-3.4
+X6.4Y-4.
+T2
+X5.55Y-4.475
+X5.65Y-4.475
+X5.75Y-4.475
+X5.85Y-4.475
+X6.1Y-4.3
+X6.2Y-4.3
+X6.3Y-4.3
+X6.4Y-4.3
+T0
+M30

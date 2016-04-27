@@ -1,0 +1,31 @@
+Cmp-Mod V01 Created by CvPcb (2013-mar-13)-testing date = Sat 31 Jan 2015 10:24:14 PM EST
+
+BeginCmp
+TimeStamp = /54CD9AA7;
+Reference = P1;
+ValeurCmp = ICSP_POGO;
+IdModule  = SIL-4;
+EndCmp
+
+BeginCmp
+TimeStamp = /54CD9AFE;
+Reference = P2;
+ValeurCmp = ICSP;
+IdModule  = SIL-4;
+EndCmp
+
+BeginCmp
+TimeStamp = /54CD9AE7;
+Reference = P3;
+ValeurCmp = PWR_POGO;
+IdModule  = SIL-4;
+EndCmp
+
+BeginCmp
+TimeStamp = /54CD9B13;
+Reference = P4;
+ValeurCmp = PWR;
+IdModule  = SIL-4;
+EndCmp
+
+EndListe
