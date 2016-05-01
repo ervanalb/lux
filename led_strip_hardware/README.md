@@ -4,8 +4,23 @@ LED Strip Hardware
 Unified (v5, v6, v7)
 ------------
 
+v7 Changelog
+------------
+(Minor revision; in progress)
+- Doubled `C1` with `C10` (`+48V` filtering)
+- Doubled `C9` with `C11` (`3V3` filtering)
+- Added `C12`, 100nF decoupling cap to `U3`
+- Improved DFM
+
 v6 Changelog
 ------------
+(Minor revision)
+- Added soft-start circuit (`Q1`, `R9`, `R10`) to `+48V`
+- Added bias resistors (`R11`, `R12`) to RS-422 lines
+- Added transient voltage suppressor (`U5`) to RS-422 lines
+- "*Greenwire*": Doubled `C1` (`+48V` filtering)
+- "*Greenwire*": Doubled `C9` (`3V3` filtering)
+- "*Greenwire*": Added 2x 100nF decoupling caps to `U3`
 
 History
 -------
