@@ -265,27 +265,52 @@ class LEDStrip(Device):
         r = self.command(self.CMD_GET_BUTTON)
         return struct.unpack('?', r)[0]
 
+class LEDSpot(Device):
+    # Spot-specific commands
+    CMD_COLOR = b'\x90'
+    CMD_COLOR_ACK = b'\x91'
+    CMD_SET_LED = b'\x92'
+
+    def __init__(self, *args, **kwargs):
+        super(LEDSpot, self).__init__(*args, **kwargs)
+        self.type_id = self.get_id()
+        if self.type_id != b'LED Spot':
+            raise DeviceTypeError(self.type_id)
+
+    def set_color(self, color, ack = False, *args, **kwargs):
+        (r, g, b) = color
+        data = bytes((int(r), int(g), int(b)))
+        if ack:
+            self.command(self.CMD_COLOR_ACK + data)
+        else:
+            self.write(self.CMD_COLOR + data)
+
+    def set_led(self, state, *args, **kwargs):
+        self.ack_command(self.CMD_SET_LED + struct.pack('?', state), *args, **kwargs)
+
 if __name__ == '__main__':
     import time
     tail = 30
 
     with Bus('/dev/ttyACM0') as bus:
         print(bus.ping(0xFFFFFFFF))
-        strip = LEDStrip(bus, 0xFFFFFFFF)
+        spot = LEDSpot(bus, 0xFFFFFFFF)
+        spot.set_color((0, 0, 0))
+
         #strip.set_length(140)
         #strip.set_address(unicast=[2])
         #print(strip.get_address())
         #strip.write_config()
-        l = strip.get_length()
+        #l = strip.get_length()
 
-        pos = 0
-        while True:
-            frame = [(0,0,0)] * l
-            for i in range(tail+1):
-                v = 255 * i / tail
-                frame[(pos + i) % l] = (v, v, v)
+        #pos = 0
+        #while True:
+        #    frame = [(0,0,0)] * l
+        #    for i in range(tail+1):
+        #        v = 255 * i / tail
+        #        frame[(pos + i) % l] = (v, v, v)
 
-            strip.send_frame(frame)
-            time.sleep(0.01)
+        #    strip.send_frame(frame)
+        #    time.sleep(0.01)
 
-            pos = (pos + 1) % l
+        #    pos = (pos + 1) % l
