@@ -128,7 +128,7 @@ void init()
 
     // DMA TX interrupt
     NVIC_InitStructure.NVIC_IRQChannel = DMA1_Channel2_3_IRQn;
-    NVIC_InitStructure.NVIC_IRQChannelPriority = 0;
+    NVIC_InitStructure.NVIC_IRQChannelPriority = 3;
     NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
     NVIC_Init(&NVIC_InitStructure);
 
