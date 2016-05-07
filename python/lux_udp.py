@@ -7,8 +7,9 @@ import struct
 
 def run_lux_udp(host, port, dev):
     with lux.Bus(dev) as bus:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) 
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.bind((host, port))
+        sock.setblocking(0)
         last_addr = None
 
         while True:
@@ -22,7 +23,10 @@ def run_lux_udp(host, port, dev):
                 destination, body = struct.unpack("<I", packet[:4])[0], packet[4:]
                 bus.write(destination, body)
             if bus.s.fileno() in inputs:
-                packet = bus.read()
+                try:
+                    packet = bus.read()
+                except lux.TimeoutError:
+                    continue
                 if packet is None: continue
 
                 #print("< @{} {}".format(packet[0], len(packet[1])))
