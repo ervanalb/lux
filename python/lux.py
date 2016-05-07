@@ -148,7 +148,7 @@ class Device(object):
         self.bus = bus
         self.address = address
 
-    def command(self, command, data, index=0, retry=3, get_crc=False):
+    def command(self, command, data, index=0, retry=5, get_crc=False):
         for r in range(retry):
             try:
                 crc = self.write(command=command, data=data, index=index)

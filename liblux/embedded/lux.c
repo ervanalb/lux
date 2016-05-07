@@ -207,6 +207,7 @@ void lux_codec()
                             goto read_command;
                         }
                     }
+                    lux_counters.bad_address++;
                     goto skip_current_packet;
                 }
             }

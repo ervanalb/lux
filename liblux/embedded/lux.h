@@ -50,6 +50,7 @@ struct lux_counters {
     uint32_t packet_overrun;
     uint32_t bad_checksum;
     uint32_t rx_interrupted;
+    uint32_t bad_address;
 };
 
 extern struct lux_counters lux_counters;

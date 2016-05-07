@@ -31,7 +31,7 @@ class BootloaderDevice(lux.Device):
     def __init__(self, bus, *args, **kwargs):
         super(BootloaderDevice, self).__init__(bus, self.BOOTLOADER_ADDR, *args, **kwargs)
 
-    def trigger_bootloader(self, addr = None, retry = 3):
+    def trigger_bootloader(self, addr = None, retry = 5):
         """ Check to see if device is in bootloader mode. """
         try:
             self.type_id = str(self.get_id())
@@ -52,7 +52,7 @@ class BootloaderDevice(lux.Device):
             if self.type_id not in self.VALID_IDS:
                 raise lux.DeviceTypeError("Could not put device into bootloader mode: {} @ 0x{:08x}".format(self.type_id, addr))
 
-    def trigger_reset(self, retry = 3):
+    def trigger_reset(self, retry = 5):
         for i in range(retry):
             self.reset()
         time.sleep(0.05)
@@ -115,7 +115,7 @@ def flash_device(dev, lux_address, binary, start_address):
     while data:
         page, data = data[:PAGE_SIZE], data[PAGE_SIZE:]
         print "Writing flash {}/{} ({} bytes)".format(index + 1, total_page_count, len(page))
-        retry = 3
+        retry = 5
         for i in range(retry):
             try:
                 dev.flash_erase(start_address + PAGE_SIZE * index)
