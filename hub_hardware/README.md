@@ -16,4 +16,5 @@ History
 - USB for comms & non-48V power
     - Spec'd for 500mA current draw to drive 6 ports
 - *Greenwire*: 3v3 reg `U1` pads are incorrect
-- *Greenwire*: Inrush limiter changed: `R42 -> C; C1 -> R; R1 unpop`
+- *Greenwire*: Inrush limiter changed: `R42 -> C; C1 -> R; R1` unpopulated
+- *Greenwire*: RX pin incorrect; shorted to TX LED

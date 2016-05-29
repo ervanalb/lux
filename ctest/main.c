@@ -51,7 +51,7 @@ static int send_messages(int fd, size_t count, long usec) {
 
     gettimeofday(&t1, NULL);
     for (size_t i = 0; i < count; i++) {
-        packet.destination = i % 10;
+        //packet.destination = i % 10;
         memset(&packet.payload, i & 0xFF, packet.payload_length);
         int rc = lux_write(fd, &packet);
         if (rc < 0) {
@@ -184,8 +184,12 @@ int main(void) {
     rc = reset_packet_count(fd);
     if (rc < 0) goto fail;
 
-    rc = send_messages(fd, 1000, 0);
+    usleep(10000);
+
+    rc = send_messages(fd, 1000, 1000);
     if (rc < 0) goto fail;
+
+    usleep(10000);
 
     rc = check_packet_count(fd);
     if (rc < 0) goto fail;

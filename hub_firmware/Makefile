@@ -15,11 +15,12 @@ INC += -Ilib/CMSIS/Include -Ilib/CMSIS/Device/ST/STM32F0xx/Include
 INC += -Ilib/STM32F0xx_StdPeriph_Driver/inc
 INC += -Ilib/STM32_USB_Device_Driver/inc
 INC += -Ilib/STM32_USB_Device_Library/Core/inc
+INC += -Ilib/STM32_USB_OTG_Driver/inc
 INC += -Ilib/STM32_USB_Device_Library/Class/cdc/inc
 
 # Assembler, compiler, and linker flags
-AFLAGS  = -mlittle-endian -mthumb -mcpu=cortex-m0 -g
-CFLAGS  = $(AFLAGS) -O1 $(INC) -std=c99 -DUSE_STDPERIPH_DRIVER -Wall
+AFLAGS  = -mlittle-endian -mthumb -mcpu=cortex-m0
+CFLAGS  = $(AFLAGS) -O1 -flto $(INC) -std=c99 -DUSE_STDPERIPH_DRIVER -Wall
 CFLAGS += -DSTM32F042
 CFLAGS += -DUSE_STDPERIPH_DRIVER
 CFLAGS += -fdata-sections -ffunction-sections
