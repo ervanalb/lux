@@ -15,7 +15,7 @@ uint8_t lux_fn_match_destination(uint8_t * dest) {
 }
 
 void lux_fn_rx() {
-    printf("Recieved packet for %#08X\n; cmd=%#02X; idx=%d; plen=%d\n",
+    printf("Received packet for %#08X\n; cmd=%#02X; idx=%d; plen=%d\n",
             lux_packet.destination, lux_packet.command, lux_packet.index, lux_packet.payload_length);
     printf("%.*s\n", lux_packet.payload_length, lux_packet.payload);
 }
@@ -102,7 +102,7 @@ static int send_commands(int fd, int count) {
         return -1;
     }
 
-    printf("Recieved packet for %#08x; cmd=%#02x; idx=%d; plen=%d; data=",
+    printf("Received packet for %#08x; cmd=%#02x; idx=%d; plen=%d; data=",
             response.destination, response.command, response.index, response.payload_length);
     printf("'%.*s'\n", response.payload_length, response.payload);
     return 0;
@@ -140,7 +140,7 @@ static int check_packet_count(int fd) {
         return -1;
     }
 
-    printf("Recieved packet for %#08x; cmd=%#02x; idx=%d; plen=%d; data=",
+    printf("Received packet for %#08x; cmd=%#02x; idx=%d; plen=%d; data=",
             response.destination, response.command, response.index, response.payload_length);
     uint32_t *x = (uint32_t *) response.payload;
     /*
