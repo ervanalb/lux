@@ -119,7 +119,7 @@ Name            | Resp.     | Payload           | Description
 
 In some cases, it is desirable for a command to transmit more than 1024 bytes. The `index` parameter allows bulk transfers (up to 256kB) by selecting a slice of a request/response.
 
-If a command requires multiple packets, it is important to note that there is no "transaction" -- the node is not required to maintain state. As a result a node does not need to keep track of which segements it has sent or recieved.
+If a command requires multiple packets, it is important to note that there is no "transaction" -- the node is not required to maintain state. As a result a node does not need to keep track of which segements it has sent or received.
 
 De-facto standards
 ------------------
