@@ -1,5 +1,5 @@
-Lux Tech-Specs
-==============
+Lux Specification
+=================
 
 Lux refers to a protocol stack which is designed to control many lightweight nodes. 
 
@@ -108,11 +108,11 @@ Name            | Resp.     | Payload           | Description
 ----------------|-----------|-------------------|-------------
 `RESET`         | None      | `flags`, 1 byte   | Reboot/reset the node. `flags` are implementation-specific.
 `GET_ID`        | Data      | None              | Respond with string containing node name. Identifies implementation running on node.
-`GET_DESCRIPTOR`| Data      | None              | Respond with string containing node name. Identifies implementation running on node.
-`GET_ADDR`      | Data      | None              | 72 byte address struct, each `u32`: { `mcast_addr`, `mcast_mask`, `unicast_addrs[16]` }
-`SET_ADDR`      | Ack       | `addrs`, 72 bytes | See `GET_ADDR`
+`GET_DESCRIPTOR`| Data      | None              | Respond with JSON blob describing node.
+`GET_ADDR`      | Data      | None              | 72 byte address struct, each `u32`: `{mcast_addr, mcast_mask, unicast_addrs[16]}`
+`SET_ADDR`      | Ack       | `addrs`, 72 bytes | Respond with address list, see `GET_ADDR`
 `WRITE_CONFIG`  | Ack       | None              | Flush configuration changes to nonvolatile storage
-`GET_PKTCNT`    | Data      | None              | 20 byte counter struct, each `u32`: { `good`, `malformed`, `overrun`, `bad_crc`, `rx_interrupted` }
+`GET_PKTCNT`    | Data      | None              | Respond with 20 byte counter struct, each `u32`: `{good, malformed, overrun, bad_crc, rx_interrupted}`
 `RESET_PKTCNT`  | Ack       | None              | Reset all packet counters to 0
 
 #### `index`
@@ -129,3 +129,94 @@ The following are not mandatory for implementing a correctly-functioning lux nod
 Nodes should always accept packets on address 0xFFFFFFFF. That way, a node with an unknown or corrupt address filter can always be reached.
 
 Uninitialized nodes should assume address 0x80000000. That way, the master can "enumerate" new nodes by continuously sending zero-length packets to 0x80000000. When an unitialized node is found, it should be configured with a permanent address and stop listening on 0x80000000.
+
+Lux Devices
+===========
+
+LED Strip
+---------
+
+### Description
+
+A collection of up to 65535 RGB pixels. Each pixel can be controlled independently, with 24 bits of color depth.
+
+### Command Descriptions
+
+In addition to the generic lux commands:
+
+Name            | Resp.     | Payload               | Description 
+----------------|-----------|-----------------------|-------------
+`FRAME`         | None      | `frame`, *3n* bytes   | Display the payload
+`FRAME_ACK`     | Ack       | `frame`, *3n* bytes   | See `FRAME`, but ack
+`FRAME_HOLD`    | None      | `frame`, *3n* bytes   | Buffer the payload as a frame, but don't display it
+`FRAME_HOLD_ACK`| Ack       | `frame`, *3n* bytes   | See `FRAME_HOLD`, but ack
+`SYNC`          | None      | None                  | Display the buffered frame from `FRAME_HOLD` or `FRAME_HOLD_ACK`
+`SYNC_ACK`      | Ack       | None                  | See `SYNC`, but ack
+`SET_LED`       | Ack       | None                  | Turn the on-board LED on or off
+`GET_BUTTON_CNT`| Data      | None                  | Respond with number of times the button has been pressed
+`SET_LENGTH`    | Ack       | None                  | Set the number of pixels
+`GET_LENGTH`    | Data      | None                  | (*To be deprecated*) Respond with number of pixels
+
+`frame` buffers must be exactly *3n* bytes long, where *n* is the length of the strip as discovered by `GET_DESCRIPTOR` or `GET_LENGTH`.
+The three consecutive bytes represent `R`, `G`, and `B` components respectively. 
+
+LED Spot
+--------
+
+### Description
+
+A single RGB pixel with 24 bits of color depth
+
+### Command Descriptions
+
+In addition to the generic lux commands:
+
+Name            | Resp.     | Payload               | Description 
+----------------|-----------|-----------------------|-------------
+`FRAME`         | None      | `frame`, 3 bytes      | Display the payload
+`FRAME_ACK`     | Ack       | `frame`, 3 bytes      | See `FRAME`, but ack
+`FRAME_HOLD`    | None      | `frame`, 3 bytes      | Buffer the payload, but don't display it
+`FRAME_HOLD_ACK`| Ack       | `frame`, 3 bytes      | See `FRAME_HOLD`, but ack
+`SYNC`          | None      | None                  | Display the buffered color from `FRAME_HOLD` or `FRAME_HOLD_ACK`
+`SYNC_ACK`      | Ack       | None                  | See `SYNC`, but ack
+`SET_LED`       | Ack       | None                  | Turn the on-board LED on or off
+
+Bootloader
+----------
+
+### Description
+
+A bootloader implementation for re-flashing devices in the field.
+
+### Command Descriptions
+
+In addition to the generic lux commands:
+
+Name            | Resp.     | Payload               | Description 
+----------------|-----------|-----------------------|-------------
+`INVALIDATE_APP`| Ack       | None                  | Prevent the existing application from booting
+`FLASH_ERASE`   | Ack       | `u32 addr` page       | Erase a FLASH page at base address `addr`
+`FLASH_WRITE`   | Data      | `u32 addr, data[]`    | Write `data` to FLASH at address `addr`. Respond with data written.
+`FLASH_READ`    | Data      | `u32 addr, u16 len`   | Read back `len` bytes of data from `addr`
+
+It is important to call `INVALIDATE_APP` before writing to FLASH.
+This "atomically" re-writes the ISR page to point to the bootlodaer, which causes subsequent reboots to jump to the bootloader instead of the application until the flashing is done.
+
+The flashing process should go as follows: 
+
+```
+    > INVALIDATE_APP
+    < Ack
+    > FLASH_ERASE 0x800
+    < Ack
+    > FLASH_WRITE 0x800 deadbeef...
+    < deadbeef...
+    > FLASH_WRITE 0x900 deadbeef...
+    < deadbeef...
+    > FLASH_ERASE 0x400
+    < Ack
+    ...
+    > FLASH_WRITE 0x000 deadbeef...
+    < deadbeef...
+    > RESET
+```
