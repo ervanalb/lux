@@ -8,7 +8,7 @@
 #include <string.h>
 #include <termios.h>
 #include <unistd.h>
-#include <sys/select.h>
+#include <poll.h>
 
 #include "linux/crc.h"
 #include "linux/lux.h"
@@ -17,6 +17,7 @@
 #define STR(x) STR2(x)
 #define STR2(x) # x
 #define DEBUG(x) printf("[debug] line " STR(__LINE__) ": " x "\n")
+#define N_SERIAL_PORTS 10
 
 static int serial_set_attribs(int fd) {
         struct termios tty;
@@ -26,8 +27,6 @@ static int serial_set_attribs(int fd) {
         tcgetattr(fd, &tty);
         cfsetispeed(&tty, 0010015);
         cfsetospeed(&tty, 0010015);
-
-        //ioctl(3, SNDCTL_TMR_TIMEBASE or SNDRV_TIMER_IOCTL_NEXT_DEVICE or TCGETS, {c_iflags=0, c_oflags=0x4, c_cflags=0x1cbd, c_lflags=0, c_line=0, c_cc[VMIN]=1, c_cc[VTIME]=2, c_cc="\x03\x1c\x7f\x15\x04\x02\x01\x00\x11\x13\x1a\x00\x12\x0f\x17\x16\x00\x00\x00"}) = 0
 
         tty.c_cflag &= ~CSIZE;     // 8-bit chars
         tty.c_cflag |= CS8;     // 8-bit chars
@@ -44,25 +43,19 @@ static int serial_set_attribs(int fd) {
 }
 
 int lux_serial_open() {
-    /* 
-     * Initialize a new serial port (if an additional one exists)
-     * Returns a ser_t instance if successful
-     * Returns NULL if there are no available ports or there is an error
-     */
-
     int fd;
 
     char dbuf[32];
     for(int i = 0; i < 9; i++) {
-        sprintf(dbuf, "/dev/ttyUSB%d", i);
-        fd = open(dbuf, O_RDWR | O_NOCTTY | O_SYNC | O_NONBLOCK);
+        snprintf(dbuf, sizeof dbuf, "/dev/ttyUSB%d", i);
+        fd = open(dbuf, O_RDWR | O_NOCTTY | O_SYNC);
         if(fd >= 0) {
             printf("Found output on '%s', %d\n", dbuf, fd);
             break;
         }
 
-        sprintf(dbuf, "/dev/ttyACM%d", i);
-        fd = open(dbuf, O_RDWR | O_NOCTTY | O_SYNC | O_NONBLOCK);
+        snprintf(dbuf, sizeof dbuf, "/dev/ttyACM%d", i);
+        fd = open(dbuf, O_RDWR | O_NOCTTY | O_SYNC);
         if(fd >= 0) {
             printf("Found output on '%s', %d\n", dbuf, fd);
             break;
@@ -227,31 +220,24 @@ static int unframe(uint8_t * raw_data, int raw_len, struct lux_packet * packet) 
 static int lowlevel_read(int fd, uint8_t data[static 2048]) {
     // XXX assumes only one device is speaking at once! :(
     uint8_t * rx_ptr = data;
-    const struct timeval tv = {1, 150000}; // 150ms
-    fd_set rfds;
-    int r;
     int n = 0;
     uint8_t * null;
 
-
     do {
-        FD_ZERO(&rfds);
-        FD_SET(fd, &rfds);
-        r = select(fd + 1, &rfds, NULL, NULL, (struct timeval*)&tv);
-        if(r < 0) return r;
-
-        if(r == 0) {
-            // Read timeout
+        struct pollfd pfd = {.fd = fd, .events = POLLIN};
+        int rc = poll(&pfd, 1, 150); // 150 milliseconds
+        if(rc < 0) return rc;
+        if(rc == 0) { // Read timeout
             DEBUG("Read timeout");
             errno = ETIMEDOUT;
             return n;
         }
 
-        r = read(fd, rx_ptr, 2048 - n);
-        if(r < 0 && errno != EAGAIN) return -1;
+        rc = read(fd, rx_ptr, 2048 - n);
+        if(rc < 0) return -1;
 
-        n += r;
-        rx_ptr += r;
+        n += rc;
+        rx_ptr += rc;
 
         if (n >= 2048) return n;
     } while((null = memchr(data, 0, n)) == NULL);
@@ -266,7 +252,6 @@ static int lowlevel_write(int fd, uint8_t* data, int len) {
 
     while(len > 0) {
         n_written = write(fd, data, len);
-        if (n_written < 0 && errno != EAGAIN) return n_written;
 
         len -= n_written;
         data += n_written;
@@ -274,18 +259,6 @@ static int lowlevel_write(int fd, uint8_t* data, int len) {
     }
 
     return total_written;
-}
-
-static int lux_read(int fd, struct lux_packet * packet) {
-    uint8_t rx_buf[2048];
-    int r;
-    r = lowlevel_read(fd, rx_buf);
-    if(r < 0) return r;
-
-    r = unframe(rx_buf, r, packet);
-    if(r < 0) return r;
-
-    return r;
 }
 
 static int clear_rx(int fd) {
@@ -302,52 +275,61 @@ static int clear_rx(int fd) {
     return 0; // Successfully flushed
 }
 
-int lux_write(int fd, struct lux_packet * packet) {
+static int lux_read(int fd, struct lux_packet * packet) {
+    uint8_t rx_buf[2048];
+    int r;
+    r = lowlevel_read(fd, rx_buf);
+    if (r < 0) return r;
+
+    r = unframe(rx_buf, r, packet);
+    if (r < 0) return r;
+
+    return r;
+}
+
+static int lux_write(int fd, struct lux_packet * packet) {
     uint8_t tx_buf[2048];
     int r;
 
     r = clear_rx(fd);
-    if(r < 0) return r;
+    if (r < 0) return r;
 
     r = frame(packet, tx_buf);
-    if(r < 0) return r;
+    if (r < 0) return r;
 
     r = lowlevel_write(fd, tx_buf, r);
-    if(r < 0) return r;
+    if (r < 0) return r;
 
     return 0; // Success
 }
 
-int lux_command(int fd, struct lux_packet * packet, int retry, struct lux_packet * response) {
-    int r;
-    if (retry < 0) retry = 1;
+int lux_command(int fd, struct lux_packet * packet, struct lux_packet * response, enum lux_flags flags) {
+    if (response == NULL && !(flags & LUX_BCAST)) return -1;
 
-    for(int i = 0; i < retry; i++) {
-        r = lux_write(fd, packet);
-        if(r < 0) continue;
+    int retry = 1;
+    if (flags & LUX_RETRY) retry = 3;
 
-        r = lux_read(fd, response);
-        if(r < 0) continue;
-        if(response->destination != 0) {
+    while (retry--) {
+        int rc = lux_write(fd, packet);
+        if (rc < 0) continue;
+        if (flags & LUX_BCAST) return 0;
+
+        rc = lux_read(fd, response);
+        if (rc < 0) continue;
+        if (response->destination != 0) {
             printf("Invalid destination %#08X\n", response->destination);
             continue;
         }
 
-        return r; // Success
+        if (flags & LUX_ACK) {
+            if (response->payload_length < 5) continue;
+            if (memcmp(&packet->crc, &response->payload[1], 4) != 0) continue;
+            
+            return response->payload[0];
+        }
+
+        return 0;
     }
 
     return -1;
-}
-
-int lux_command_ack(int fd, struct lux_packet * packet, int retry) {
-    struct lux_packet response;
-    int r;
-
-    r = lux_command(fd, packet, retry, &response);
-    if (r < 0) return r;
-
-    if (response.payload_length < 5) return -1;
-    if (memcmp(&packet->crc, &response.payload[1], sizeof packet->crc) != 0) return -1;
-
-    return response.payload[0];
 }
