@@ -17,12 +17,8 @@ struct lux_packet {
     uint32_t crc;
 };
 
-enum lux_flags {
-    LUX_ACK   = (1 << 0),
-    LUX_RETRY = (1 << 1),
-    LUX_BCAST = (1 << 2),
-};
-
-int lux_command(int fd, struct lux_packet * packet, struct lux_packet * response, enum lux_flags flags);
+int lux_write(int fd, struct lux_packet * packet);
+int lux_command(int fd, struct lux_packet * packet, int retry, struct lux_packet * response);
+int lux_command_ack(int fd, struct lux_packet * packet, int retry);
 
 #endif
