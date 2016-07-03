@@ -16,7 +16,10 @@ def run_lux_udp(host, port, dev):
             if sock.fileno() in inputs:
                 packet, last_addr = sock.recvfrom(1100)
                 #print ">", repr(packet)
-                ser.write(packet)
+                if len(packet) == 0: # Ping, respond back
+                    sock.sendto("", 0, last_addr)
+                else:
+                    ser.write(packet)
             if ser.fileno() in inputs:
                 serial_buffer += ser.read()
                 while "\0" in serial_buffer:
