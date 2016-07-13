@@ -74,6 +74,8 @@ load_bl: bl.elf
 	arm-none-eabi-gdb bl.elf -x init.gdb -ex load
 loadquit_bl: bl.elf
 	arm-none-eabi-gdb bl.elf -batch -x init.gdb -ex load -ex kill -ex quit
+loadquit_full: combined.elf
+	arm-none-eabi-gdb combined.elf -batch -x init.gdb -ex load -ex kill -ex quit
 stlink:
 	st-util -p 4244
 stload: app.bin
@@ -85,7 +87,7 @@ stload_full: combined.bin
 sterase:
 	st-flash erase
 luxload: app.bin
-	python ../python/luxflash.py /dev/ttyACM0 0x08000000 app.bin 
+	python ../python/luxflash.py /dev/ttyACM0 0x08000000 app.bin
 luxload1: app.bin
 	python ../python/luxflash.py /dev/ttyACM1 0x08000000 app.bin
 luxload2: app.bin

@@ -1,0 +1,23 @@
+﻿Digi-Key Part Number,Manufacturer,Manufacturer Part Number,Customer Reference,Quantity 1,Quantity 2,Quantity 3,Mfg Std Lead Time,Description,Comments,RoHS Status,Lead Free Status,REACH Status
+490-10458-1-ND,MURATA ELECTRONICS (VA),GRM155R62A104KE14D,"C1,C13",2,0,0,16 Weeks,CAP CER 0.1UF 100V X5R 0402,Alternate Packaging Exists,RoHS Compliant,Lead free,Unaffected Dec-2015
+490-13341-1-ND,MURATA ELECTRONICS (VA),GRM155R71E104ME14D,"C5,C6,C7,C8,C9,C10,C11,C12,C13,C14",10,0,0,18 Weeks,CAP CER 0.1UF 25V X7R 0402,Alternate Packaging Exists,RoHS Compliant,Lead free,Unaffected Dec-2015
+1276-1066-1-ND,"SAMSUNG ELECTRO-MECHANICS AMERICA, INC (VA)",CL21B105KAFNNNE,C2,1,0,0,10 Weeks,CAP CER 1UF 25V X7R 0805,Alternate Packaging Exists,RoHS Compliant,Lead free,Unaffected Dec-2015
+1276-2953-1-ND,"SAMSUNG ELECTRO-MECHANICS AMERICA, INC (VA)",CL21B225KAFNFNE,C4,1,0,0,10 Weeks,CAP CER 2.2UF 25V X7R 0805,Alternate Packaging Exists,RoHS Compliant,Lead free,Unaffected Dec-2015
+1276-6462-1-ND,"SAMSUNG ELECTRO-MECHANICS AMERICA, INC (VA)",CL21A475KAQNNNG,C15,1,0,0,10 Weeks,CAP CER 4.7UF 25V X5R 0805,Alternate Packaging Exists,RoHS Compliant,Lead free,Not Available
+160-1435-1-ND,LITE-ON INC (VA),LTST-C190KGKT,"D1,D3,D5,D7,D9,D11,D13,D15",8,0,0,10 Weeks,LED GREEN CLEAR 0603 SMD,Alternate Packaging Exists,RoHS Compliant,Lead free,Unaffected Dec-2015
+160-1436-1-ND,LITE-ON INC (VA),LTST-C190KRKT,"D2,D4,D6,D8,D10,D12,D14,D16",8,0,0,10 Weeks,LED RED CLEAR 0603 SMD,Alternate Packaging Exists,RoHS Compliant,Lead free,Unaffected Dec-2015
+AE10382-ND,ASSMANN WSW COMPONENTS,A-2004-0-4-LP-N-R,"P1,P2,P3,P4,P5,P6",6,0,0,16 Weeks,CONN MOD JACK 6P4C R/A UNSHLD,,RoHS Compliant,Lead free,Unaffected Dec-2015
+DMP6023LE-13DICT-ND,DIODES INCORPORATED (VA),DMP6023LE-13,Q1,1,0,0,6 Weeks,MOSFET P-CH 60V 7A SOT223,Alternate Packaging Exists,RoHS Compliant,Lead free,Unaffected Dec-2015
+P13593SCT-ND,PANASONIC ELECTRONIC COMPONENTS (VA),EVQ-PE104K,SW1,1,0,0,6 Weeks,SWITCH TACTILE SPST-NO 0.05A 12V,Alternate Packaging Exists,RoHS Compliant,Lead free,Unaffected Jun-2015
+497-14648-ND,STMICROELECTRONICS,STM32F042C6T6,U2,1,0,0,11 Weeks,IC MCU 32BIT 32KB FLASH 48LQFP,,RoHS Compliant,Lead free,Unaffected Jun-2015
+296-14521-1-ND,TEXAS INSTRUMENTS (VA),CD74HC30M96,U3,1,0,0,6 Weeks,IC GATE NAND 1CH 8-INP 14-SOIC,Alternate Packaging Exists,RoHS Compliant,Lead free,Unaffected Dec-2015
+DT1452-02SO-7DICT-ND,DIODES INCORPORATED (VA),DT1452-02SO-7,"U5,U7,U9,U11,U13,U15",6,0,0,6 Weeks,TVS DIODE 5.5VWM 11VC SOT23,Alternate Packaging Exists,RoHS Compliant,Lead free,Unaffected Dec-2015
+ISL83485IBZ-TCT-ND,INTERSIL (VA),ISL83485IBZ-T,"U4,U6,U8,U10,U12,U14",6,0,0,6 Weeks,IC TXRX RS485/422 3.3V LP 8SOIC,Alternate Packaging Exists,RoHS Compliant,Lead free,Unaffected Dec-2015
+311-680HRCT-ND,YAGEO (VA),RC0603FR-07680RL,"R7,R9,R13,R15,R19,R21,R25,R27,R31,R33,R37,R39",12,0,0,22 Weeks,RES SMD 680 OHM 1% 1/10W 0603,Alternate Packaging Exists,RoHS Compliant,Lead free,Unaffected Dec-2015
+311-120HRCT-ND,YAGEO (VA),RC0603FR-07120RL,"R8,R14,R20,R26,R32,R38",6,0,0,22 Weeks,RES SMD 120 OHM 1% 1/10W 0603,Alternate Packaging Exists,RoHS Compliant,Lead free,Unaffected Dec-2015
+311-10KGRCT-ND,YAGEO (VA),RC0603JR-0710KL,"R3,R11,R17,R23,R29,R35,R41,R50",8,0,0,22 Weeks,RES SMD 10K OHM 5% 1/10W 0603,Alternate Packaging Exists,RoHS Compliant,Lead free,Unaffected Dec-2015
+311-15KGRCT-ND,YAGEO (VA),RC0603JR-0715KL,R2,1,0,0,22 Weeks,RES SMD 15K OHM 5% 1/10W 0603,Alternate Packaging Exists,RoHS Compliant,Lead free,Unaffected Dec-2015
+311-100KJRCT-ND,YAGEO (VA),RC0402JR-07100KL,R1,1,0,0,22 Weeks,RES SMD 100K OHM 5% 1/16W 0402,,RoHS Compliant,Lead free,Unaffected Dec-2015
+311-470JRCT-ND,YAGEO (VA),RC0402JR-07470RL,"R4,R5,R6,R12,R18,R24,R30,R36,R49",9,0,0,22 Weeks,RES SMD 470 OHM 5% 1/16W 0402,Alternate Packaging Exists,RoHS Compliant,Lead free,Unaffected Dec-2015
+YAG1281CT-ND,YAGEO (VA),RC0402JR-0710KP,"R43,R44,R45,R46,R47,R48",6,0,0,22 Weeks,RES SMD 10K OHM 5% 1/16W 0402,Alternate Packaging Exists,RoHS Compliant,Lead free,Unaffected Dec-2015
+151-1206-1-ND,EDAC INC (VA),690-005-299-043,CON2,1,0,0,15 Weeks,CONN MINI USB RCPT RA TYPE B SMD,Alternate Packaging Exists,RoHS Compliant,Lead free,Unaffected Jun-2015

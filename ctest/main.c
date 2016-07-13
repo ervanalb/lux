@@ -9,6 +9,27 @@
 #include <sys/time.h>
 #include <unistd.h>
 
+#define _ERR_STRINGIFY2(x) #x
+#define _ERR_STRINGIFY(x) _ERR_STRINGIFY2(x)
+
+#define DEBUG_INFO __FILE__ ":" _ERR_STRINGIFY(__LINE__) ":" _ERR_STRINGIFY(__func__)
+#define _ERR_MSG(severity, msg, ...) fprintf(stderr, "[%-5s] [%s:%s:%d] " msg "\n", _ERR_STRINGIFY(severity), __FILE__, __func__, __LINE__, ## __VA_ARGS__);
+
+#define FAIL(...) ({ERROR(__VA_ARGS__); exit(EXIT_FAILURE);})
+#define ERROR(...) _ERR_MSG(ERROR, ## __VA_ARGS__)
+#define WARN(...)  _ERR_MSG(WARN,  ## __VA_ARGS__)
+#define INFO(...)  _ERR_MSG(INFO,  ## __VA_ARGS__)
+#define DEBUG(...) _ERR_MSG(DEBUG, ## __VA_ARGS__)
+#define MEMFAIL() PFAIL("Could not allocate memory")
+
+#define PFAIL(...) ({ERROR(__VA_ARGS__); exit(EXIT_FAILURE);})
+#define PERROR(msg, ...) _ERR_MSG(ERROR,"[%s] " msg, strerror(errno), ## __VA_ARGS__)
+
+static uint32_t ADDRESS = 0x11;
+//#define ADDRESS 0x80000000
+//#define ADDRESS 0x00000001
+//#define ADDRESS 0x00000011
+//#define ADDRESS 0xFFFFFFFF
 /*
 uint8_t lux_fn_match_destination(uint8_t * dest) {
     return 1;
@@ -43,19 +64,25 @@ static int send_messages(int fd, size_t count, long usec) {
 
     // ---- 
     struct lux_packet packet = {
-        .destination = 0xFFFFFFFF,
+        .destination = ADDRESS,
         .command = CMD_FRAME,
         .index = 0,
-        .payload_length = 1020,
+        .payload_length = 300 * 3,
     };
 
     gettimeofday(&t1, NULL);
+    count |= 0xFF;
     for (size_t i = 0; i < count; i++) {
         //packet.destination = i % 10;
-        memset(&packet.payload, i & 0xFF, packet.payload_length);
+        //memset(&packet.payload, i & 0xFF, packet.payload_length);
+        for (size_t k = 0; k < packet.payload_length / 3; k++) {
+            packet.payload[k * 3 + 0] = i & 0x1F;
+            packet.payload[k * 3 + 1] = i & 0x1F;
+            packet.payload[k * 3 + 2] = i & 0x1F;
+        }
         int rc = lux_write(fd, &packet);
         if (rc < 0) {
-            printf("Error: %s\n", strerror(errno));
+            PERROR("Unable to write");
             return -1;
         }
         usleep(usec);
@@ -77,7 +104,7 @@ static int send_commands(int fd, int count) {
     gettimeofday(&t1, NULL);
     // ---- 
     struct lux_packet packet = {
-        .destination = 0xFFFFFFFF,
+        .destination = ADDRESS, 
         .command = CMD_GET_ID,
         .index = 0,
         .payload_length = 0,
@@ -98,7 +125,7 @@ static int send_commands(int fd, int count) {
     printf("Avg: %0.3lf ms/write\n", ratio);
 
     if (rc < 0) {
-        printf("Error: %s\n", strerror(errno));
+        PERROR("Error in a command");
         return -1;
     }
 
@@ -111,14 +138,14 @@ static int send_commands(int fd, int count) {
 static int reset_packet_count(int fd) {
     struct lux_packet response;
     struct lux_packet packet2 = {
-        .destination = 0xFFFFFFFF,
+        .destination = ADDRESS, 
         .command = CMD_RESET_PKTCNT,
         .index = 0,
         .payload_length = 0,
     };
     int rc = lux_command(fd, &packet2, 3, &response);
     if (rc < 0) {
-        printf("Error: %s\n", strerror(errno));
+        PERROR("Unable to send reset command");
         return -1;
     }
 
@@ -126,17 +153,41 @@ static int reset_packet_count(int fd) {
     return 0;
 }
 
+static int blink_led(int fd, uint32_t addr, int count) {
+    struct lux_packet packet = {
+        .destination = addr, 
+        .command = CMD_SET_LED,
+        .index = 0,
+        .payload_length = 1,
+    };
+    struct lux_packet response;
+
+    while (count--) {
+        packet.payload[0] = 1;
+        int rc = lux_command(fd, &packet, 1, &response);
+        if (rc < 0) PERROR("Unable to write LED on msg");
+        usleep(100000);
+
+        packet.payload[0] = 0;
+        rc = lux_command(fd, &packet, 1, &response);
+        if (rc < 0) PERROR("Unable to write LED off msg");
+        usleep(100000);
+    }
+
+    return 0;
+}
+
 static int check_packet_count(int fd) {
     struct lux_packet response;
     struct lux_packet packet2 = {
-        .destination = 0xFFFFFFFF,
+        .destination = ADDRESS, 
         .command = CMD_GET_PKTCNT,
         .index = 0,
         .payload_length = 0,
     };
     int rc = lux_command(fd, &packet2, 3, &response);
     if (rc < 0) {
-        printf("Error: %s\n", strerror(errno));
+        PERROR("Packet check count failed");
         return -1;
     }
 
@@ -154,12 +205,53 @@ static int check_packet_count(int fd) {
     return 0;
 }
 
+static int assign_address(int fd, uint32_t old_addr, uint32_t new_addr) {
+    struct lux_packet response;
+    struct lux_packet command = {
+        .destination = old_addr,
+        .command = CMD_GET_ADDR
+    };
+    int rc = lux_command(fd, &command, 1, &response);
+    if (rc < 0) {
+        PERROR("Unable to get addresses");
+        return -1;
+    }
+
+    command.command = CMD_SET_ADDR;
+    command.payload_length = response.payload_length;
+    memcpy(command.payload, response.payload, response.payload_length);
+    memcpy(&command.payload[8], &new_addr, sizeof new_addr);
+
+    rc = lux_command(fd, &command, 3, &response);
+    if (rc < 0) {
+        PERROR("Unable to set addresses");
+        return -1;
+    }
+    return 0;
+}
+
+static int set_length(int fd, uint16_t len) {
+    struct lux_packet response;
+    struct lux_packet command = {
+        .destination = ADDRESS,
+        .command = CMD_SET_LENGTH,
+        .payload_length = 2,
+    };
+    memcpy(command.payload, &len, sizeof len);
+    int rc = lux_command(fd, &command, 3, &response);
+    if (rc < 0) {
+        PERROR("Unable to set len");
+        return -1;
+    }
+    return 0;
+}
+
 int main(void) {
     int fd = lux_network_open("127.0.0.1", 1365);
     //int fd = lux_network_open("192.168.8.1", 1365);
     //int fd = lux_serial_open();
     if (fd < 0) {
-        printf("Error, no port: %s\n", strerror(errno));
+        PERROR("Unable to open lux");
         return -1;
     }
     /*
@@ -173,10 +265,21 @@ int main(void) {
 
     /*
     */
+    /*
+    blink_led(fd, 0x80000000, 10);
+    INFO("Using address %#08x", ADDRESS);
+    assign_address(fd, 0x80000000, ADDRESS);
+    */
+    blink_led(fd, ADDRESS, 1);
+    ADDRESS = 0xFFFFFFFF;
+    set_length(fd, 150);
+    ADDRESS = 0x10;
 
     int rc = 0;
+    /*
     rc = send_commands(fd, 100);
     if (rc < 0) goto fail;
+    */
 
     rc = check_packet_count(fd);
     if (rc < 0) goto fail;
@@ -186,7 +289,7 @@ int main(void) {
 
     usleep(10000);
 
-    rc = send_messages(fd, 1000, 1000);
+    rc = send_messages(fd, 1000, 10000);
     if (rc < 0) goto fail;
 
     usleep(10000);
@@ -196,7 +299,7 @@ int main(void) {
 
     /*
     struct lux_packet packet3 = {
-        .destination = 0xFFFFFFFF,
+        .destination = ADDRESS, 
         .command = CMD_SET_LENGTH,
         .index = 0,
         .payload_length = 2,

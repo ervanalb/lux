@@ -32,6 +32,12 @@ void init()
     GPIO_Init(GPIOF,&GPIO_InitStruct);
 
     // Button
+    GPIO_InitStruct.GPIO_Pin = GPIO_Pin_15;
+    GPIO_InitStruct.GPIO_Mode = GPIO_Mode_IN;
+    GPIO_InitStruct.GPIO_Speed = GPIO_Speed_50MHz;
+    GPIO_InitStruct.GPIO_PuPd = GPIO_PuPd_UP;
+    GPIO_Init(GPIOA,&GPIO_InitStruct);
+
     GPIO_InitStruct.GPIO_Pin = GPIO_Pin_7;
     GPIO_InitStruct.GPIO_Mode = GPIO_Mode_IN;
     GPIO_InitStruct.GPIO_Speed = GPIO_Speed_50MHz;
@@ -115,7 +121,7 @@ void led_off()
 
 uint8_t button()
 {
-    return !GPIO_ReadInputDataBit(GPIOB,GPIO_Pin_7);
+    return !GPIO_ReadInputDataBit(GPIOA,GPIO_Pin_15) || !GPIO_ReadInputDataBit(GPIOB,GPIO_Pin_7);
 }
 
 void reset()

@@ -3,6 +3,7 @@
 import serial
 import socket
 import select
+import sys
 
 def run_lux_udp(host, port, dev):
     with serial.Serial(dev, baudrate=3000000, xonxoff=False) as ser:
@@ -28,4 +29,7 @@ def run_lux_udp(host, port, dev):
                     #print "<", repr(packet)
 
 if __name__ == "__main__":
-    run_lux_udp(host="0.0.0.0", port=1365, dev="/dev/ttyACM0")
+    if len(sys.argv) == 3:
+        run_lux_udp(host="0.0.0.0", port=int(sys.argv[1]), dev=sys.argv[2])
+    else:
+        print "Usage: bridge.py <port> <serial>"

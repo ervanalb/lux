@@ -6,7 +6,6 @@ Unified (v5, v6, v7)
 
 v7 Changelog
 ------------
-(Minor revision; in progress)
 - Doubled `C1` with `C10` (`+48V` filtering)
 - Doubled `C9` with `C11` (`3V3` filtering)
 - Added `C12`, 100nF decoupling cap to `U3`

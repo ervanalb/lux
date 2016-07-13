@@ -9,7 +9,7 @@ struct config cfg_flash __attribute__((section(".config"))) = {
     .multicast_address_mask = 0x00000000,
     .multicast_address      = 0xFFFFFFFF,
     .unicast_addresses = {
-        0x80000000, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,    
+        0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,    
         0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,    
         0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,    
         0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF

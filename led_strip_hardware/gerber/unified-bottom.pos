@@ -1,0 +1,23 @@
+### Module positions - created on Tue 12 Jul 2016 10:12:37 PM EDT ###
+### Printed by Pcbnew version kicad 4.0.2+dfsg1-stable
+## Unit = mm, Angle = deg.
+## Side : bottom
+# Ref     Val          Package                PosX       PosY       Rot  Side
+C2        100n         C_0402             -19.8120    -2.2860   -0.0000  bottom
+C8        100n         C_0402             -13.3350    -0.7620   -0.0000  bottom
+C9        2u2          C_0805             -18.7960     0.5080  270.0000  bottom
+C11       2u2          C_0805             -16.6370     0.5080  270.0000  bottom
+C12       100n         R_0402              -5.8420   -11.1760  180.0000  bottom
+D1        USR_LED      LED_0603           -19.8120   -11.6840  180.0000  bottom
+D3        1SMB58AT3G   DO-214AA(SMB)      -33.7820    -5.8420  270.0000  bottom
+Q1        CPH3351      SOT23GDS           -29.2100   -10.4140  270.0000  bottom
+R1        120R         R_0603             -24.8920    -5.8420  270.0000  bottom
+R4        220R         R_0402             -14.2240   -10.2870    0.0000  bottom
+R7        1K           R_0402               4.3180    -4.5720  270.0000  bottom
+R8        1K           R_0402               4.3180    -7.1120   90.0000  bottom
+R9        22K          R_0402             -32.1310   -11.1760  270.0000  bottom
+R10       47K          R_0402             -33.5280   -11.1760   90.0000  bottom
+R11       680R         R_0603             -24.8920    -1.5240  270.0000  bottom
+R12       680R         R_0603             -24.8920   -10.1600  270.0000  bottom
+U1        ISL83485IBZ  SO8E               -19.8120    -5.8420  270.0000  bottom
+## End

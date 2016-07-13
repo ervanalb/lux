@@ -4,6 +4,20 @@ Lux Hub Hardware
 History
 -------
 
+### Rev 6
+
+#### Errata
+
+- 
+
+##### Bad parts
+
+- U3
+- R42
+- C3 is short
+- Fuse clips
+- CON1 holes should be bigger
+
 ### Rev 5
 
 - STM32F042

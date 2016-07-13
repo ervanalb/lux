@@ -42,6 +42,8 @@ uint8_t lux_fn_match_destination(uint8_t* dest)
         if(addr == cfg.unicast_addresses[i])
             return 1;
     }
+    if(addr == 0x80000000 && button())
+        return 1;
     return addr == 0xFFFFFFFF;
 }
 

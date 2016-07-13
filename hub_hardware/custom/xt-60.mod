@@ -1,0 +1,36 @@
+PCBNEW-LibModule-V1  Mon 24 Feb 2014 06:24:20 AM EST
+# encoding utf-8
+Units mm
+$INDEX
+XT-60
+$EndINDEX
+$MODULE XT-60
+Po 0 0 0 15 530B2BDF 00000000 ~~
+Li XT-60
+Sc 0
+AR /52FCA00F
+Op 0 0 0
+T0 -4.9 0 1 1 900 0.15 N V 21 N "P1"
+T1 5 0 1 1 900 0.15 N V 21 N "BATT"
+DS 1.5 -7.9 4.1 -5 0.15 21
+DS -1.5 -7.9 -4.1 -5 0.15 21
+DS 4.1 7.8 4.1 -5 0.15 21
+DS -4.1 7.8 -4.1 -5 0.15 21
+DS -4.1 7.8 4.1 7.8 0.15 21
+DS 1.5 -7.9 -1.5 -7.9 0.15 21
+$PAD
+Sh "1" C 6 6 0 0 0
+Dr 4.4 0 0
+At STD N 00E0FFFF
+Ne 1 "+BATT"
+Po 0 3.6
+$EndPAD
+$PAD
+Sh "2" C 6 6 0 0 0
+Dr 4.4 0 0
+At STD N 00E0FFFF
+Ne 2 "GND"
+Po 0 -3.6
+$EndPAD
+$EndMODULE XT-60
+$EndLIBRARY

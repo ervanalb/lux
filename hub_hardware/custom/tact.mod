@@ -1,0 +1,49 @@
+PCBNEW-LibModule-V1  Mon 06 Jan 2014 02:03:31 AM EST
+# encoding utf-8
+Units mm
+$INDEX
+TACT-SW-SMD
+$EndINDEX
+$MODULE TACT-SW-SMD
+Po 0 0 0 15 52CA4EB0 00000000 ~~
+Li TACT-SW-SMD
+Sc 0
+AR 
+Op 0 0 0
+T0 5 0 1.5 1.5 900 0.15 N V 21 N "TACT-SW-SMD"
+T1 -4 0 1.5 1.5 900 0.15 N V 21 N "VAL**"
+DS -3 -3 3 -3 0.15 21
+DS 3 -3 3 3 0.15 21
+DS 3 3 -3 3 0.15 21
+DS -3 3 -3 -3 0.15 21
+DC 0 0 0 1.75 0.15 21
+$PAD
+Sh "1" R 1.4 2.1 0 0 0
+Dr 0 0 0
+At SMD N 00888000
+Ne 0 ""
+Po 2.25 -4.55
+$EndPAD
+$PAD
+Sh "2" R 1.4 2.1 0 0 0
+Dr 0 0 0
+At SMD N 00888000
+Ne 0 ""
+Po 2.25 4.55
+$EndPAD
+$PAD
+Sh "3" R 1.4 2.1 0 0 0
+Dr 0 0 0
+At SMD N 00888000
+Ne 0 ""
+Po -2.25 -4.55
+$EndPAD
+$PAD
+Sh "4" R 1.4 2.1 0 0 0
+Dr 0 0 0
+At SMD N 00888000
+Ne 0 ""
+Po -2.25 4.55
+$EndPAD
+$EndMODULE TACT-SW-SMD
+
