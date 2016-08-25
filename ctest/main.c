@@ -25,7 +25,7 @@
 #define PFAIL(...) ({ERROR(__VA_ARGS__); exit(EXIT_FAILURE);})
 #define PERROR(msg, ...) _ERR_MSG(ERROR,"[%s] " msg, strerror(errno), ## __VA_ARGS__)
 
-static uint32_t ADDRESS = 0x11;
+static uint32_t ADDRESS = 0x12;
 //#define ADDRESS 0x80000000
 //#define ADDRESS 0x00000001
 //#define ADDRESS 0x00000011
@@ -246,10 +246,10 @@ static int set_length(int fd, uint16_t len) {
     return 0;
 }
 
-int main(void) {
-    int fd = lux_network_open("127.0.0.1", 1365);
+int main(int argc, char ** argv) {
+    //int fd = lux_network_open("127.0.0.1", 1365);
     //int fd = lux_network_open("192.168.8.1", 1365);
-    //int fd = lux_serial_open();
+    int fd = lux_serial_open();
     if (fd < 0) {
         PERROR("Unable to open lux");
         return -1;
@@ -262,25 +262,31 @@ int main(void) {
     }
     printf("sent!\n");
     */
+    if (argc == 2) {
+        ADDRESS = strtoul(argv[1], NULL, 0);
+        INFO("Address %#08x", ADDRESS);
+    }
 
-    /*
-    */
-    /*
-    blink_led(fd, 0x80000000, 10);
-    INFO("Using address %#08x", ADDRESS);
+    INFO("Blinking 0x80000000, hold down the button!");
+    blink_led(fd, 0x80000000, 3);
+    INFO("Assigning address %#08x", ADDRESS);
     assign_address(fd, 0x80000000, ADDRESS);
-    */
-    blink_led(fd, ADDRESS, 1);
-    ADDRESS = 0xFFFFFFFF;
-    set_length(fd, 150);
-    ADDRESS = 0x10;
+    blink_led(fd, ADDRESS, 100);
 
-    int rc = 0;
     /*
+    blink_led(fd, ADDRESS, 1);
+    //ADDRESS = 0xFFFFFFFF;
+    //set_length(fd, 150);
+    //ADDRESS = 0x10;
+    */
+
+    /*
+    int rc = 0;
     rc = send_commands(fd, 100);
     if (rc < 0) goto fail;
     */
 
+    /*
     rc = check_packet_count(fd);
     if (rc < 0) goto fail;
 
@@ -296,6 +302,7 @@ int main(void) {
 
     rc = check_packet_count(fd);
     if (rc < 0) goto fail;
+    */
 
     /*
     struct lux_packet packet3 = {
@@ -324,6 +331,7 @@ int main(void) {
 
     lux_close(fd);
     return 0;
+    goto fail;
 fail:
     printf("Failed.\n");
     return 1;
