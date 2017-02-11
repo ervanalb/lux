@@ -181,41 +181,41 @@ void rx_packet()
 
     switch(luxf->ssingle.cmd)
     {
-        case CMD_RESET:
+        case LUX_CMD_RESET:
             reset(); // Never returns
-        case CMD_BOOTLOADER:
+        case LUX_CMD_BOOTLOADER:
             bootloader(); // Never returns
-        case CMD_COLOR:
+        case LUX_CMD_COLOR:
             set_color();
             break;
-        case CMD_COLOR_ACK:
+        case LUX_CMD_COLOR_ACK:
             set_color_ack();
             break;
-        case CMD_WRITE_CONFIG:
+        case LUX_CMD_WRITE_CONFIG:
             write_config_to_flash();
             break;
-        case CMD_GET_ID:
+        case LUX_CMD_GET_ID:
             send_id();
             break;
-        case CMD_SET_LED:
+        case LUX_CMD_SET_LED:
             set_led();
             break;
-        case CMD_GET_ADDR:
+        case LUX_CMD_GET_ADDR:
             send_addresses();
             break;
-        case CMD_SET_ADDR:
+        case LUX_CMD_SET_ADDR:
             set_addresses();
             break;
-        case CMD_SET_USERDATA:
+        case LUX_CMD_SET_USERDATA:
             set_userdata();
             break;
-        case CMD_GET_USERDATA:
+        case LUX_CMD_GET_USERDATA:
             send_userdata();
             break;
-        case CMD_GET_PKTCNT:
+        case LUX_CMD_GET_PKTCNT:
             send_packet_counters();
             break;
-        case CMD_RESET_PKTCNT:
+        case LUX_CMD_RESET_PKTCNT:
             reset_packet_counters();
             break;
     }

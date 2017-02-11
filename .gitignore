@@ -6,6 +6,8 @@ tags
 .*.swp
 .*.swn
 .*.swo
+*.pyc
+*.orig
 *.mod~
 $*.sch
 _autosave*

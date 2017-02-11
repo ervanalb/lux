@@ -260,24 +260,24 @@ void lux_fn_rx()
 
     switch(lux_packet.command)
     {
-        case CMD_RESET:
+        case LUX_CMD_RESET:
             reset(); // Never returns
-        case CMD_GET_ID:
+        case LUX_CMD_GET_ID:
             send_id();
             break;
-        case CMD_INVALIDATEAPP:
+        case LUX_CMD_INVALIDATEAPP:
             invalidate_app_cmd();
             break;
-        case CMD_FLASH_BASEADDR:
+        case LUX_CMD_FLASH_BASEADDR:
             baseaddr_flash_cmd();
             break;
-        case CMD_FLASH_ERASE:
+        case LUX_CMD_FLASH_ERASE:
             erase_flash_cmd();
             break;
-        case CMD_FLASH_WRITE:
+        case LUX_CMD_FLASH_WRITE:
             write_flash_cmd();
             break;
-        case CMD_FLASH_READ:
+        case LUX_CMD_FLASH_READ:
             read_flash_cmd();
             break;
     }

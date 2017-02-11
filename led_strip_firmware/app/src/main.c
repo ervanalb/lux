@@ -212,50 +212,50 @@ void lux_fn_rx()
 
     switch(lux_packet.command)
     {
-        case CMD_GET_ID:
-        case CMD_GET_DESCRIPTOR:
+        case LUX_CMD_GET_ID:
+        case LUX_CMD_GET_DESCRIPTOR:
             send_id();
             break;
-        case CMD_RESET:
+        case LUX_CMD_RESET:
             if (lux_packet.payload[0] & 0x1)
                 bootloader(); // Never returns
             else
                 reset(); // Never returns
             break;
-        case CMD_FRAME:
-        case CMD_FRAME_HOLD:
+        case LUX_CMD_FRAME:
+        case LUX_CMD_FRAME_HOLD:
             set_frame();
             break;
-        case CMD_FRAME_ACK:
-        case CMD_FRAME_HOLD_ACK:
+        case LUX_CMD_FRAME_ACK:
+        case LUX_CMD_FRAME_HOLD_ACK:
             set_frame_ack();
             break;
-        case CMD_COMMIT_CONFIG:
+        case LUX_CMD_COMMIT_CONFIG:
             write_config_to_flash();
             send_ack_crc();
             break;
-        case CMD_SET_LED:
+        case LUX_CMD_SET_LED:
             set_led();
             break;
-        case CMD_GET_BUTTON_COUNT:
+        case LUX_CMD_GET_BUTTON_COUNT:
             send_button();
             break;
-        case CMD_GET_ADDR:
+        case LUX_CMD_GET_ADDR:
             send_addresses();
             break;
-        case CMD_SET_ADDR:
+        case LUX_CMD_SET_ADDR:
             set_addresses();
             break;
-        case CMD_SET_LENGTH:
+        case LUX_CMD_SET_LENGTH:
             set_strip_length();
             break;
-        case CMD_GET_LENGTH:
+        case LUX_CMD_GET_LENGTH:
             send_strip_length();
             break;
-        case CMD_GET_PKTCNT:
+        case LUX_CMD_GET_PKTCNT:
             send_packet_counters();
             break;
-        case CMD_RESET_PKTCNT:
+        case LUX_CMD_RESET_PKTCNT:
             reset_packet_counters();
             break;
     }

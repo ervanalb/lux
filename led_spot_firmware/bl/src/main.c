@@ -216,21 +216,21 @@ void rx_packet()
 
     switch(lux_packet[0])
     {
-        case CMD_RESET:
+        case LUX_CMD_RESET:
             reset(); // Never returns
-        case CMD_GET_ID:
+        case LUX_CMD_GET_ID:
             send_id();
             break;
-        case CMD_INVALIDATEAPP:
+        case LUX_CMD_INVALIDATEAPP:
             invalidate_app();
             break;
-        case CMD_FLASH_ERASE:
+        case LUX_CMD_FLASH_ERASE:
             erase_flash_cmd();
             break;
-        case CMD_FLASH_WRITE:
+        case LUX_CMD_FLASH_WRITE:
             write_flash_cmd();
             break;
-        case CMD_FLASH_READ:
+        case LUX_CMD_FLASH_READ:
             read_flash_cmd();
             break;
     }

@@ -8,69 +8,75 @@
 #include <string.h>
 #include <termios.h>
 #include <unistd.h>
-#include <sys/select.h>
+#include <sys/epoll.h>
 
-#include "linux/crc.h"
-#include "linux/lux.h"
+#include "liblux/linux/crc.h"
+#include "liblux/linux/lux.h"
 
-//#define DEBUG(x) 
-#define STR(x) STR2(x)
-#define STR2(x) # x
-#define DEBUG(x) printf("[debug] line " STR(__LINE__) ": " x "\n")
+// If compiled with -DLUX_USE_LOG_H, then include "log.h" and use it
+#ifdef LUX_USE_LOG_H
+#include "log.h"
+#define LUX_DEBUG INFO
+#define LUX_ERROR ERROR
+#endif
 
-static int serial_set_attribs(int fd) {
-        struct termios tty;
+// ...otherwise, throw something together with printf
+#ifndef LUX_DEBUG
+#define _LUX_STR(x) _LUX_STR2(x)
+#define _LUX_STR2(x) # x
+#define LUX_DEBUG(x, ...) printf("[debug] line " _LUX_STR(__LINE__) ": " x "\n", ## __VA_ARGS__)
+#define LUX_ERROR(x, ...) printf("[error] line " _LUX_STR(__LINE__) ": " x "\n", ## __VA_ARGS__)
+#endif
 
-        memset (&tty, 0, sizeof tty);
-        
-        tcgetattr(fd, &tty);
-        cfsetispeed(&tty, 0010015);
-        cfsetospeed(&tty, 0010015);
+int lux_timeout_ms = 150; // Timeout for response, in milliseconds
 
-        //ioctl(3, SNDCTL_TMR_TIMEBASE or SNDRV_TIMER_IOCTL_NEXT_DEVICE or TCGETS, {c_iflags=0, c_oflags=0x4, c_cflags=0x1cbd, c_lflags=0, c_line=0, c_cc[VMIN]=1, c_cc[VTIME]=2, c_cc="\x03\x1c\x7f\x15\x04\x02\x01\x00\x11\x13\x1a\x00\x12\x0f\x17\x16\x00\x00\x00"}) = 0
-
-        tty.c_cflag &= ~CSIZE;     // 8-bit chars
-        tty.c_cflag |= CS8;     // 8-bit chars
-        tty.c_cflag |= (CLOCAL | CREAD);
-        tty.c_cflag &= ~CSTOPB; // 1 stop bit
-        tty.c_cflag &= ~(PARENB|PARODD);
-        tty.c_iflag &= ~(INPCK|ISTRIP);
-        tty.c_iflag &= ~(IXON | IXOFF);
-        tty.c_iflag |= IXANY;
-
-        if (tcsetattr(fd, TCSANOW, &tty) != 0) return -1;
-
-        return 0;
+int lux_uri_open(const char * uri) {
+    char buf[512];
+    uint16_t port;
+    if (sscanf(uri, "serial://%511s", buf) == 1) {
+        return lux_serial_open(buf);
+    } else if (sscanf(uri, "udp://%511[^:]:%hu", buf, &port) == 2) {
+        return lux_network_open(buf, port);
+    }
+    LUX_DEBUG("Invalid uri '%s'", uri);
+    return -1;
 }
 
-int lux_serial_open() {
-    /* 
-     * Initialize a new serial port (if an additional one exists)
-     * Returns a ser_t instance if successful
-     * Returns NULL if there are no available ports or there is an error
-     */
+static int serial_set_attribs(int fd) {
+    struct termios tty;
 
-    int fd;
+    memset (&tty, 0, sizeof tty);
+    
+    tcgetattr(fd, &tty);
 
-    char dbuf[32];
-    for(int i = 0; i < 9; i++) {
-        sprintf(dbuf, "/dev/ttyUSB%d", i);
-        fd = open(dbuf, O_RDWR | O_NOCTTY | O_SYNC | O_NONBLOCK);
-        if(fd >= 0) {
-            printf("Found output on '%s', %d\n", dbuf, fd);
-            break;
-        }
+    /*
+    tty.c_cflag &= ~CSIZE;     // 8-bit chars
+    tty.c_cflag |= CS8;     // 8-bit chars
+    tty.c_cflag |= (CLOCAL | CREAD);
+    tty.c_cflag &= ~CSTOPB; // 1 stop bit
+    tty.c_cflag &= ~(PARENB|PARODD);
+    tty.c_iflag &= ~(INPCK|ISTRIP);
+    tty.c_iflag &= ~(IXON | IXOFF);
+    tty.c_iflag |= IXANY;
+    */
+    tty.c_iflag = IXANY;
+    tty.c_oflag = ONOCR | ONLRET;
+    tty.c_cflag = CS8 | CREAD | CLOCAL;
+    tty.c_lflag = 0;
+    // TODO: Maybe we can use the cc's to be clever?
 
-        sprintf(dbuf, "/dev/ttyACM%d", i);
-        fd = open(dbuf, O_RDWR | O_NOCTTY | O_SYNC | O_NONBLOCK);
-        if(fd >= 0) {
-            printf("Found output on '%s', %d\n", dbuf, fd);
-            break;
-        }
-    }
+    //cfmakeraw(&tty);
+    cfsetispeed(&tty, 0010015);
+    cfsetospeed(&tty, 0010015);
 
-    if(fd < 0) return -1;
+    if (tcsetattr(fd, TCSANOW, &tty) != 0) return -1;
 
+    return 0;
+}
+
+int lux_serial_open(const char * path) {
+    int fd = open(path, O_RDWR | O_NOCTTY | O_SYNC);
+    if (fd < 0) return -1;
     if(serial_set_attribs(fd) < 0) return -2;
 
     return fd;
@@ -91,6 +97,14 @@ int lux_network_open(const char * address, uint16_t port) {
     if (sock < 0) return -1;
     int rc = connect(sock, (struct sockaddr *) &addr, sizeof addr);
     if (rc < 0) return -1;
+    
+    rc = lux_sync(sock, 10);
+    if (rc != 0) {
+        LUX_DEBUG("No response from %s:%d", address, port);
+        close(sock);
+        errno = ECONNREFUSED;
+        return -1;
+    }
 
     return sock;
 }
@@ -125,7 +139,7 @@ static int cobs_decode(uint8_t* in_buf, int n, uint8_t* out_buf) {
 
     for(int i = 0; i < n; i++) {
         if(in_buf[i] == 0) {
-            DEBUG("Invalid character\n");
+            LUX_DEBUG("Invalid character\n");
             errno = EINVAL;
             return -1;
         }
@@ -143,7 +157,7 @@ static int cobs_decode(uint8_t* in_buf, int n, uint8_t* out_buf) {
     }
 
     if(ctr != total) {
-        DEBUG("Generic decode error\n");
+        LUX_DEBUG("Generic decode error\n");
         errno = EINVAL;
         return -2;
     }
@@ -179,8 +193,9 @@ static int frame(struct lux_packet * packet, uint8_t buffer[static 2048])
     n = cobs_encode(tmp, ptr - tmp, buffer);
     if(n < 0) return n;
 
-    buffer[n] = 0;
-    return n + 1; // success
+    //buffer[n++] = 0; // Double null bytes
+    buffer[n++] = 0;
+    return n; // success
 }
 
 static int unframe(uint8_t * raw_data, int raw_len, struct lux_packet * packet) {
@@ -191,7 +206,6 @@ static int unframe(uint8_t * raw_data, int raw_len, struct lux_packet * packet) 
     if(len < 0) return len;
 
     if(len < 8) {
-        DEBUG("");
         errno = EINVAL;
         return -1;
     }
@@ -200,7 +214,7 @@ static int unframe(uint8_t * raw_data, int raw_len, struct lux_packet * packet) 
     crc = crc_update(crc, tmp, len);
     crc = crc_finalize(crc);
     if(crc != 0x2144DF1C) {
-        DEBUG("Bad CRC");
+        LUX_DEBUG("Bad CRC");
         errno = EINVAL;
         return -1;
     }
@@ -227,37 +241,54 @@ static int unframe(uint8_t * raw_data, int raw_len, struct lux_packet * packet) 
 static int lowlevel_read(int fd, uint8_t data[static 2048]) {
     // XXX assumes only one device is speaking at once! :(
     uint8_t * rx_ptr = data;
-    const struct timeval tv = {1, 150000}; // 150ms
-    fd_set rfds;
-    int r;
     int n = 0;
     uint8_t * null;
+    int rc = 0;
+    int epollfd = epoll_create(1);
+    if (epollfd < 0) {
+        LUX_DEBUG("Error creating epollfd: %s", strerror(errno));
+        return -1;
+    }
 
+    struct epoll_event ev;
+    ev.events = EPOLLIN;
+    ev.data.fd = fd;
+    rc = epoll_ctl(epollfd, EPOLL_CTL_ADD, fd, &ev);
+    if (rc < 0) {
+        LUX_DEBUG("Error adding fd to epollfd: %s", strerror(errno));
+        goto fail;
+    }
 
     do {
-        FD_ZERO(&rfds);
-        FD_SET(fd, &rfds);
-        r = select(fd + 1, &rfds, NULL, NULL, (struct timeval*)&tv);
-        if(r < 0) return r;
-
-        if(r == 0) {
-            // Read timeout
-            DEBUG("Read timeout");
+        struct epoll_event event;
+        rc = epoll_wait(epollfd, &event, 1, lux_timeout_ms);
+        if(rc < 0) {
+            LUX_DEBUG("Error in epoll_wait: %s", strerror(errno));
+            goto fail;
+        }
+        if(rc == 0) { // Read timeout
+            LUX_DEBUG("Read timeout");
             errno = ETIMEDOUT;
-            return n;
+            rc = n;
+            goto fail;
         }
 
-        r = read(fd, rx_ptr, 2048 - n);
-        if(r < 0 && errno != EAGAIN) return -1;
+        rc = read(fd, rx_ptr, 2048 - n);
+        if(rc < 0) goto fail;
 
-        n += r;
-        rx_ptr += r;
+        n += rc;
+        rx_ptr += rc;
 
-        if (n >= 2048) return n;
+        if (n >= 2048) {
+            rc = n;
+            goto fail;
+        }
     } while((null = memchr(data, 0, n)) == NULL);
 
-    // TODO: Should buffer unused data
-    return null - data;
+    rc = null - data;
+fail:
+    close(epollfd);
+    return rc;
 }
 
 static int lowlevel_write(int fd, uint8_t* data, int len) {
@@ -266,7 +297,6 @@ static int lowlevel_write(int fd, uint8_t* data, int len) {
 
     while(len > 0) {
         n_written = write(fd, data, len);
-        if (n_written < 0 && errno != EAGAIN) return n_written;
 
         len -= n_written;
         data += n_written;
@@ -274,18 +304,6 @@ static int lowlevel_write(int fd, uint8_t* data, int len) {
     }
 
     return total_written;
-}
-
-static int lux_read(int fd, struct lux_packet * packet) {
-    uint8_t rx_buf[2048];
-    int r;
-    r = lowlevel_read(fd, rx_buf);
-    if(r < 0) return r;
-
-    r = unframe(rx_buf, r, packet);
-    if(r < 0) return r;
-
-    return r;
 }
 
 static int clear_rx(int fd) {
@@ -302,52 +320,94 @@ static int clear_rx(int fd) {
     return 0; // Successfully flushed
 }
 
-int lux_write(int fd, struct lux_packet * packet) {
+static int lux_read(int fd, struct lux_packet * packet) {
+    uint8_t rx_buf[2048];
+    int r;
+    r = lowlevel_read(fd, rx_buf);
+    if (r < 0) return r;
+
+    r = unframe(rx_buf, r, packet);
+    if (r < 0) return r;
+
+    return r;
+}
+
+int lux_write(int fd, struct lux_packet * packet, enum lux_flags flags) {
+    (void) flags;
     uint8_t tx_buf[2048];
     int r;
 
     r = clear_rx(fd);
-    if(r < 0) return r;
+    if (r < 0) return r;
 
     r = frame(packet, tx_buf);
-    if(r < 0) return r;
+    if (r < 0) return r;
 
     r = lowlevel_write(fd, tx_buf, r);
-    if(r < 0) return r;
+    if (r < 0) return r;
 
     return 0; // Success
 }
 
-int lux_command(int fd, struct lux_packet * packet, int retry, struct lux_packet * response) {
-    int r;
-    if (retry < 0) retry = 1;
+int lux_command(int fd, struct lux_packet * packet, struct lux_packet * response, enum lux_flags flags) {
+    if (response == NULL) {
+        errno = EINVAL; return -1; }
 
-    for(int i = 0; i < retry; i++) {
-        r = lux_write(fd, packet);
-        if(r < 0) continue;
+    int retry = 1;
+    if (flags & LUX_RETRY) retry = 3;
 
-        r = lux_read(fd, response);
-        if(r < 0) continue;
-        if(response->destination != 0) {
-            printf("Invalid destination %#08X\n", response->destination);
+    while (retry--) {
+        int rc = lux_write(fd, packet, flags);
+        if (rc < 0) continue;
+
+        memset(response, 0, sizeof *response);
+        rc = lux_read(fd, response);
+        if (rc < 0) continue;
+        if (response->destination != 0) {
+            LUX_ERROR("Invalid destination %#08X", response->destination);
             continue;
         }
 
-        return r; // Success
+        if (flags & LUX_ACK) {
+            if (response->payload_length < 5) continue;
+            if (memcmp(&packet->crc, &response->payload[1], 4) != 0) continue;
+            
+            return response->payload[0];
+        }
+
+        return 0;
     }
 
     return -1;
 }
 
-int lux_command_ack(int fd, struct lux_packet * packet, int retry) {
-    struct lux_packet response;
-    int r;
+int lux_sync(int fd, int tries) {
+#if 0 // Didn't actually help
+    while (tries--) {
+        // Send a 0-byte packet to make sure the bridge is up
+        char buf[1];
+        int rc = send(fd, buf, 0, 0);
+        if (rc < 0) {
+            if (errno == ENOTSOCK) return 0;
+            return -1;
+        }
 
-    r = lux_command(fd, packet, retry, &response);
-    if (r < 0) return r;
+        // Wait up to 1 ms for a response
+        struct pollfd pfd = {.fd = fd, .events = POLLIN};
+        rc = poll(&pfd, 1, 1 /*ms*/);
+        if(rc < 0) return rc;
+        if(rc == 0) continue;
 
-    if (response.payload_length < 5) return -1;
-    if (memcmp(&packet->crc, &response.payload[1], sizeof packet->crc) != 0) return -1;
-
-    return response.payload[0];
+        rc = recv(fd, buf, 1, 0);
+        if (rc == 0) return 0;
+        if (rc < 0) {
+            LUX_DEBUG("Bad response from socket %d (%s)", fd, strerror(errno));
+            errno = ECONNREFUSED;
+            return -1;
+        }
+    }
+    errno = ETIMEDOUT;
+    return -1;
+#endif
+    return 0;
 }

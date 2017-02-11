@@ -8,7 +8,7 @@
 #include <sys/shm.h>
 #include <time.h>
 
-#include "linux/lux.h"
+#include "liblux/linux/lux.h"
 #include "log.h"
 
 enum loglevel loglevel = LOGLEVEL_INFO;
@@ -188,7 +188,7 @@ int grabber_grabsparse(struct grabber * grabber) {
 
 int main(void) {
     struct grabber grabber;
-    size_t n_pixels = 1000;
+    size_t n_pixels = 100;
     grabber_init(&grabber, n_pixels);
 
     for (size_t i = 0; i < n_pixels; i++) {
@@ -204,17 +204,19 @@ int main(void) {
     while (1) {
         struct lux_packet packet = {
             .destination = -1,
-            .command = CMD_FRAME,
+            .command = LUX_CMD_FRAME,
             .payload_length = n_pixels * 3,
         };
-        grabber_grabsparse(&grabber);
+        ASSERT(n_pixels * 3 <= sizeof packet.payload);
+
+        grabber_grab(&grabber);
         uint8_t * p = packet.payload;
         for (size_t i = 0; i < n_pixels; i++) {
             *p++ = grabber.colors[i].red;
             *p++ = grabber.colors[i].green;
             *p++ = grabber.colors[i].blue;
         }
-        int rc = lux_write(fd, &packet);
+        int rc = lux_write(fd, &packet, 0);
         if (rc < 0)
             PFAIL("Unable to write lux packet");
     }
