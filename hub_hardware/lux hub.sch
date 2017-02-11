@@ -134,7 +134,9 @@ F 3 "" H 4900 2400 30  0000 C CNN
 	-1   0    0    1   
 $EndComp
 Wire Wire Line
-	5450 1750 5450 2550
+	5450 1750 5450 2150
+Wire Wire Line
+	5450 2150 5450 2550
 $Comp
 L VDD #PWR06
 U 1 1 556BBB19
@@ -186,7 +188,13 @@ F 3 "" H 1300 3950 60  0000 C CNN
 	1    0    0    -1  
 $EndComp
 Wire Wire Line
-	1300 3250 1300 3950
+	1300 3250 1300 3400
+Wire Wire Line
+	1300 3400 1300 3700
+Wire Wire Line
+	1300 3700 1300 3850
+Wire Wire Line
+	1300 3850 1300 3950
 Connection ~ 1300 3400
 Connection ~ 1300 3700
 Connection ~ 1300 3850
@@ -754,7 +762,9 @@ $EndComp
 Wire Wire Line
 	1600 2200 1700 2200
 Wire Wire Line
-	1700 2200 1700 2400
+	1700 2200 1700 2300
+Wire Wire Line
+	1700 2300 1700 2400
 Wire Wire Line
 	1700 2300 1600 2300
 Connection ~ 1700 2300
@@ -818,7 +828,13 @@ F 3 "" H 2350 2950 60  0000 C CNN
 	1    0    0    -1  
 $EndComp
 Wire Wire Line
-	2850 1850 4000 1850
+	2850 1850 3250 1850
+Wire Wire Line
+	3250 1850 3650 1850
+Wire Wire Line
+	3650 1850 3900 1850
+Wire Wire Line
+	3900 1850 4000 1850
 $Comp
 L +48V #PWR026
 U 1 1 556C6EDA
@@ -844,7 +860,9 @@ $EndComp
 Wire Wire Line
 	1700 1850 1750 1850
 Wire Wire Line
-	2250 1850 2450 1850
+	2250 1850 2350 1850
+Wire Wire Line
+	2350 1850 2450 1850
 $Comp
 L R-RESCUE-lux_hub R2
 U 1 1 556C8699
@@ -893,9 +911,13 @@ F 3 "" H 2650 1950 60  0000 C CNN
 	0    1    -1   0   
 $EndComp
 Wire Wire Line
-	2350 2400 2700 2400
+	2350 2400 2650 2400
 Wire Wire Line
-	2650 2150 2650 2450
+	2650 2400 2700 2400
+Wire Wire Line
+	2650 2150 2650 2400
+Wire Wire Line
+	2650 2400 2650 2450
 Connection ~ 2650 2400
 Connection ~ 2350 2400
 $Comp
@@ -1198,7 +1220,9 @@ Connection ~ 3650 1850
 Wire Wire Line
 	3650 2400 3650 2450
 Wire Wire Line
-	3650 2450 3900 2450
+	3650 2450 3800 2450
+Wire Wire Line
+	3800 2450 3900 2450
 Wire Wire Line
 	3900 2450 3900 2350
 Wire Wire Line
