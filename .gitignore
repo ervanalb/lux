@@ -1,5 +1,6 @@
-lux_test
-xvfb_bridge/xvfb_bridge
+utils/lux_test
+utils/lux_x11_bridge
+utils/luxctl
 tags
 *.o
 *.d
