@@ -1,5 +1,14 @@
+lux_test
+xvfb_bridge/xvfb_bridge
+tags
 *.o
 *.d
 .*.swp
 .*.swn
 .*.swo
+*.mod~
+$*.sch
+_autosave*
+*.bak
+.svn/*
+led_strip_firmware/lib/STM32_*
