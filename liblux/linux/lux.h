@@ -39,6 +39,11 @@ void lux_close(int fd);
 // Returns 0 on success and -1 on failure, setting errno
 int lux_write(int fd, struct lux_packet * packet, enum lux_flags flags);
 
+// Read a lux packet from the channel.
+// `flags` is currently unused.
+// Returns 0 on success and -1 on failure, setting errno
+int lux_read(int fd, struct lux_packet * packet, enum lux_flags flags);
+
 // Write a lux packet to the channel and wait for a response.
 // `flags & LUX_ACK`: Exepect the response to be an ack/nak, and return the error code
 // `flags & LUX_RETRY`: Retry sending the message if there was no response or it was invalid

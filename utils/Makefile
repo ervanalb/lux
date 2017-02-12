@@ -10,7 +10,7 @@ INC = -I. -I../
 
 LIBRARIES = -lX11 -lXext
 
-CFLAGS = -std=c99 -ggdb3 -O3 $(INC)
+CFLAGS = -std=c99 -ggdb3 -O3 -fPIC $(INC)
 CFLAGS += -Wall -Wextra -Werror -Wno-unused-parameter
 CFLAGS += -D_POSIX_C_SOURCE=201702 -D_XOPEN_SOURCE
 CFLAGS += -DLUX_USE_LOG_H
@@ -21,7 +21,7 @@ LFLAGS = $(CFLAGS)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 # Binaries
-TARGETS = luxctl lux_test lux_x11_bridge
+TARGETS = luxctl lux_test lux_x11_bridge liblux.so
 
 luxctl: luxctl.o $(LUX_OBJ)
 	$(CC) $(LFLAGS) -o $@ $+
@@ -29,6 +29,8 @@ lux_test: lux_test.o $(LUX_OBJ)
 	$(CC) $(LFLAGS) -o $@ $+
 lux_x11_bridge: lux_x11_bridge.o $(LUX_OBJ)
 	$(CC) $(LFLAGS) -o $@ $+ -lX11 -lXext
+liblux.so: $(LUX_OBJ)
+	$(CC) $(LFLAGS) -shared -o $@ $+
 
 .PHONY: all
 all: $(TARGETS)

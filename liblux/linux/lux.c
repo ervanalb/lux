@@ -18,6 +18,8 @@
 #include "log.h"
 #define LUX_DEBUG INFO
 #define LUX_ERROR ERROR
+enum loglevel loglevel = LOGLEVEL_INFO;
+#pragma weak loglevel
 #endif
 
 // ...otherwise, throw something together with printf
@@ -320,7 +322,8 @@ static int clear_rx(int fd) {
     return 0; // Successfully flushed
 }
 
-static int lux_read(int fd, struct lux_packet * packet) {
+int lux_read(int fd, struct lux_packet * packet, enum lux_flags flags) {
+    (void) flags;
     uint8_t rx_buf[2048];
     int r;
     r = lowlevel_read(fd, rx_buf);
@@ -329,7 +332,7 @@ static int lux_read(int fd, struct lux_packet * packet) {
     r = unframe(rx_buf, r, packet);
     if (r < 0) return r;
 
-    return r;
+    return 0; // Success
 }
 
 int lux_write(int fd, struct lux_packet * packet, enum lux_flags flags) {
@@ -361,7 +364,7 @@ int lux_command(int fd, struct lux_packet * packet, struct lux_packet * response
         if (rc < 0) continue;
 
         memset(response, 0, sizeof *response);
-        rc = lux_read(fd, response);
+        rc = lux_read(fd, response, flags);
         if (rc < 0) continue;
         if (response->destination != 0) {
             LUX_ERROR("Invalid destination %#08X", response->destination);
