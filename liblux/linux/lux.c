@@ -134,7 +134,7 @@ static int cobs_encode(uint8_t* in_buf, int n, uint8_t* out_buf) {
     return out_ptr; // success
 }
 
-static int cobs_decode(uint8_t* in_buf, int n, uint8_t* out_buf) {
+static int cobs_decode(const uint8_t * in_buf, int n, uint8_t* out_buf) {
     int out_ptr = 0;
     uint8_t total = 255;
     uint8_t ctr = 255;
@@ -167,7 +167,7 @@ static int cobs_decode(uint8_t* in_buf, int n, uint8_t* out_buf) {
     return out_ptr; // success
 }
 
-static int frame(struct lux_packet * packet, uint8_t buffer[static 2048])
+int lux_frame(struct lux_packet * packet, uint8_t buffer[static 2048])
 {
     uint8_t tmp[2048];
     uint8_t * ptr = tmp;
@@ -200,7 +200,7 @@ static int frame(struct lux_packet * packet, uint8_t buffer[static 2048])
     return n; // success
 }
 
-static int unframe(uint8_t * raw_data, int raw_len, struct lux_packet * packet) {
+int lux_unframe(const uint8_t * raw_data, int raw_len, struct lux_packet * packet) {
     uint8_t tmp[2048];
     int len;
 
@@ -329,7 +329,7 @@ int lux_read(int fd, struct lux_packet * packet, enum lux_flags flags) {
     r = lowlevel_read(fd, rx_buf);
     if (r < 0) return r;
 
-    r = unframe(rx_buf, r, packet);
+    r = lux_unframe(rx_buf, r, packet);
     if (r < 0) return r;
 
     return 0; // Success
@@ -343,7 +343,7 @@ int lux_write(int fd, struct lux_packet * packet, enum lux_flags flags) {
     r = clear_rx(fd);
     if (r < 0) return r;
 
-    r = frame(packet, tx_buf);
+    r = lux_frame(packet, tx_buf);
     if (r < 0) return r;
 
     r = lowlevel_write(fd, tx_buf, r);

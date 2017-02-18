@@ -12,6 +12,19 @@ struct lux_packet {
     uint32_t crc;
 };
 
+// `lux_frame` and `lux_unframe` do not do any I/O; so are cross-platform
+
+// Packs a `struct lux_packet` into a buffer
+// Populates `in_packet->crc`
+// Returns number of bytes written
+int lux_frame(struct lux_packet * in_packet, uint8_t out_buffer[static 2048]);
+
+// Unpacks a buffer into a `struct lux_packet`
+// Returns -1 on failure, `payload_length` on success
+int lux_unframe(const uint8_t * in_buffer, int in_sz, struct lux_packet * packet);
+
+// The rest of the API is linux-specific, using `epoll` and fds.
+
 enum lux_flags {
     LUX_ACK   = (1 << 0),
     LUX_RETRY = (1 << 1),
