@@ -14,7 +14,7 @@
 
 enum loglevel loglevel = LOGLEVEL_INFO;
 
-static int send_test_messages(int fd, uint32_t addr, size_t count, long usec) {
+static int send_test_messages(int fd, uint32_t addr, uint32_t len, size_t count, long usec) {
     struct timeval t1, t2;
 
     // ---- 
@@ -22,7 +22,7 @@ static int send_test_messages(int fd, uint32_t addr, size_t count, long usec) {
         .destination = addr,
         .command = LUX_CMD_FRAME,
         .index = 0,
-        .payload_length = 300 * 3,
+        .payload_length = len * 3,
     };
 
     gettimeofday(&t1, NULL);
@@ -30,7 +30,7 @@ static int send_test_messages(int fd, uint32_t addr, size_t count, long usec) {
     for (size_t i = 0; i < count; i++) {
         //packet.destination = i % 10;
         //memset(&packet.payload, i & 0xFF, packet.payload_length);
-        for (size_t k = 0; k < packet.payload_length / 3; k++) {
+        for (size_t k = 0; k < len; k++) {
             packet.payload[k * 3 + 0] = i & 0x3F;
             packet.payload[k * 3 + 1] = i & 0x3F;
             packet.payload[k * 3 + 2] = i & 0x3F;
@@ -236,6 +236,7 @@ static int usage() {
     udp://127.0.0.1:1365\n\
  \n\
   Commands:\n\
+    -h                  This help\n\
     -a <address>        Use address for subsequent commands\n\
     -A <address>        Change the address of the device and\n\
                         use the new address for subsequent commands\n\
@@ -273,11 +274,15 @@ int main(int argc, char ** argv) {
     }
 
     uint32_t address = 0x80000000;
+    uint32_t length = 1;
     optind = 2;
     int opt = -1;
     int rc = 0;
     while ((opt = getopt(argc, argv, "a:A:f:i:b:sSL:Ch")) != -1) {
-        uint32_t loptarg = strtoul(optarg, NULL, 0);
+        uint32_t loptarg = 0;
+        if (optarg != NULL)
+            loptarg = strtoul(optarg, NULL, 0);
+
         switch (opt) {
         case 'a': // use address
             address = loptarg;
@@ -288,7 +293,7 @@ int main(int argc, char ** argv) {
             address = loptarg;
             break;
         case 'f': // flood frame packets
-            rc = send_test_messages(fd, address, loptarg, 0);
+            rc = send_test_messages(fd, address, length, loptarg, 0);
             break;
         case 'i': // flood id commands
             rc = send_test_commands(fd, address, loptarg);
@@ -303,7 +308,8 @@ int main(int argc, char ** argv) {
             rc = reset_packet_count(fd, address);
             break;
         case 'L': // set length
-            rc = set_length(fd, address, loptarg);
+            length = loptarg;
+            rc = set_length(fd, address, length);
             break;
         case 'C':; // commit config
             rc = commit_config(fd, address);
