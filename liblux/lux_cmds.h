@@ -43,11 +43,6 @@ enum __attribute__((__packed__)) lux_command {
     // - Response: ack+crc
     LUX_CMD_SET_ADDR = 0x12,
 
-    /*
-    LUX_CMD_GET_USERDATA,
-    LUX_CMD_SET_USERDATA,
-    */
-
     // LUX_CMD_GET_PKTCNT: no index, no request payload, 20-byte data response
     // - Request: Empty
     // - Response: Packet statistics. 20 bytes (u32[5])
@@ -59,6 +54,9 @@ enum __attribute__((__packed__)) lux_command {
     // - Response: ack+crc
     // Resets all packet counts to 0
     LUX_CMD_RESET_PKTCNT = 0x14,
+
+    LUX_CMD_GET_USERDATA = 0x15,
+    LUX_CMD_SET_USERDATA = 0x16,
 
     // -------------- Bootloader-specific commands --------------
     
@@ -119,7 +117,7 @@ enum __attribute__((__packed__)) lux_command {
     // LUX_CMD_GET_BUTTON_COUNT: no index, no request payload, 4 byte response
     // - Request: Empty
     // - Response: Number of times the button has been pushed since startup
-    LUX_CMD_GET_BUTTON_COUNT = 0x97, //TODO (currently "is button pressed?"
+    LUX_CMD_GET_BUTTON_COUNT = 0x97,
 
     // Configuration
     // TODO: Move to descriptors
@@ -128,7 +126,7 @@ enum __attribute__((__packed__)) lux_command {
 };
 
 // Response format from LUX_CMD_GET_PKTCNT
-struct __attribute__((__packed__)) lux_stats_payload {
+struct __attribute__((__packed__)) lux_counters {
     uint32_t good_packet;
     uint32_t malformed_packet;
     uint32_t packet_overrun;
@@ -136,3 +134,18 @@ struct __attribute__((__packed__)) lux_stats_payload {
     uint32_t rx_interrupted;
     uint32_t bad_address;
 };
+
+#define LUX_UNICAST_ADDRESS_COUNT 16
+struct __attribute__((__packed__)) lux_addresses {
+    uint32_t multicast;
+    uint32_t multicast_mask;
+    uint32_t unicasts[LUX_UNICAST_ADDRESS_COUNT];
+};
+
+// Special addresses
+#define LUX_ADDRESS_NONE    0x00000000
+#define LUX_ADDRESS_REPLY   0x00000000
+#define LUX_ADDRESS_BUTTON  0x80000000
+#define LUX_ADDRESS_BL      0x80000001
+#define LUX_ADDRESS_NEW     0x80000002
+#define LUX_ADDRESS_ALL     0xFFFFFFFF

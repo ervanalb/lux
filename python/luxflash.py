@@ -6,9 +6,7 @@ import time
 import struct
 import argparse
 
-
 hexi = lambda x: int(x.rpartition("0x")[2], 16)
-
 
 parser = argparse.ArgumentParser(description="Flash using Lux Bootloader")
 parser.add_argument('bus', type=str, help="Serial port of Lux Bus")
@@ -17,8 +15,8 @@ parser.add_argument('hexfile', type=open, help="Binary file to flash to chip")
 parser.add_argument('luxaddr', type=hexi, help="Lux address to flash", nargs='?', default=lux.Bus.MULTICAST)
 
 class BootloaderDevice(lux.Device):
-    BOOTLOADER_ADDR = 0x80000000
-    VALID_IDS = {"WS2811 LED Strip Bootloader", "LPD6803 LED Strip Bootloader"}
+    BOOTLOADER_ADDR = 0x80000001
+    VALID_IDS = {"WS2811 LED Strip Bootloader", "LPD6803 LED Strip Bootloader", "Lux Bootloader"}
 
     PAGE_SIZE = 1024
 
@@ -84,7 +82,7 @@ class BootloaderDevice(lux.Device):
 
     def flash_write(self, page_no, data):
         """ Write a chunk of data to flash memory at `addr` """
-        assert len(data) <= 1024, ValueError("Invalid length, must be <=1016")
+        assert len(data) <= 1024, ValueError("Invalid length, must be <=1024")
 
         result, crc = self.command(self.BL_CMD_WRITE, data, index=page_no, get_crc=True)
 
@@ -101,7 +99,7 @@ def flash_device(dev, lux_address, binary, start_address):
     print "Start address: ", hex(start_address)
     print "End address: ", hex(start_address + len(data))
 
-    print "Checking for bootloader..."
+    print "Checking for bootloader on 0x{:x}...".format(lux_address)
     dev.trigger_bootloader(lux_address)
     print "Success!"
 

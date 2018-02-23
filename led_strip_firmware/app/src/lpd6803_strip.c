@@ -2,8 +2,9 @@
 
 #include "strip.h"
 #include "stm32f0xx.h"
+#include "lux_device.h"
 
-#define STRIP_LENGTH (cfg.strip_length)
+#define STRIP_LENGTH (lux_device_config.strip_length)
 #define STRIP_MEMORY_LENGTH (3+STRIP_LENGTH+STRIP_LENGTH/16)
 #define MAX_STRIP_MEMORY_LENGTH (3+MAX_STRIP_LENGTH+MAX_STRIP_LENGTH/16)
 
@@ -70,19 +71,24 @@ void strip_init()
     DMA_Cmd(DMA1_Channel3, ENABLE);
 }
 
-void strip_write(uint8_t* rgb_data)
+void strip_write(uint8_t* rgb_data, uint16_t begin_pos, uint16_t end_pos)
 {
-    int16_t i;
-    uint8_t r,g,b;
     uint16_t* strip = &strip_memory[2];
-    for(i=0;i<STRIP_LENGTH;i++)
+    for(uint16_t i = begin_pos; i < end_pos; i++)
     {
-        r = (*rgb_data++) >> 3;
-        g = (*rgb_data++) >> 3;
-        b = (*rgb_data++) >> 3;
+        if (i >= MAX_STRIP_LENGTH)
+            break;
+
+        uint8_t r = (*rgb_data++) >> 3;
+        uint8_t g = (*rgb_data++) >> 3;
+        uint8_t b = (*rgb_data++) >> 3;
 
         *strip++ = 0x8000 | (b << 10) | (r << 5) | g;
     }
+}
+
+void strip_flush(void) {
+    uint16_t* strip = &strip_memory[2];
     for(int i=0;i<=STRIP_LENGTH/16;i++)
     {
         strip_memory[2+STRIP_LENGTH+i]=0xFFFF;

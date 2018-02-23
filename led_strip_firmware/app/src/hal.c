@@ -124,12 +124,12 @@ uint8_t button()
     return !GPIO_ReadInputDataBit(GPIOA,GPIO_Pin_15) || !GPIO_ReadInputDataBit(GPIOB,GPIO_Pin_7);
 }
 
-void reset()
+void __attribute__((noreturn)) reset()
 {
     NVIC_SystemReset();
 }
 
-void bootloader()
+void __attribute__((noreturn)) bootloader()
 {
     NVIC->ICER[0] = 0xFFFF; // Permanently disable all interrupts
     DMA_Cmd(DMA1_Channel5, DISABLE);

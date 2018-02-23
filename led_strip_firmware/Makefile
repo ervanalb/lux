@@ -1,10 +1,9 @@
-# Makefile for STM32F373 using cmsis and GNU toolchain.
-
 # Files to include
 APP_C_SRC  = $(wildcard app/src/*.c)
 BL_C_SRC   = $(wildcard bl/src/*.c)
 C_SRC  = $(wildcard lib/STM32F0xx_StdPeriph_Driver/src/*.c)
 C_SRC += lib/lux/embedded/lux.c
+C_SRC += lib/lux/embedded/lux_device.c
 
 APP_OBJECTS = $(patsubst %.c,%.o,$(C_SRC) $(APP_C_SRC)) app/src/startup.o
 BL_OBJECTS  = $(patsubst %.c,%.o,$(C_SRC) $(BL_C_SRC)) bl/src/startup.o
@@ -18,13 +17,14 @@ APP_INC = -Iapp/inc
 BL_INC = -Ibl/inc
 
 # Assembler, compiler, and linker flags
-AFLAGS  = -mlittle-endian -mthumb -mcpu=cortex-m0 -g
-CFLAGS  = $(AFLAGS) -O1 $(INC) -std=c99 -DUSE_STDPERIPH_DRIVER -Wall
+AFLAGS  = -mlittle-endian -mthumb -mcpu=cortex-m0 -ggdb3
+CFLAGS  = $(AFLAGS) -Os $(INC) -std=c99 -DUSE_STDPERIPH_DRIVER
+CFLAGS += -Wall -Wextra
 CFLAGS += -DSTM32F031
 CFLAGS += -DUSE_STDPERIPH_DRIVER
 CFLAGS += -DWS2811
 #CFLAGS += -DLPD6803
-CFLAGS += -fdata-sections -ffunction-sections
+CFLAGS += -fdata-sections -ffunction-sections -flto
 LFLAGS  = $(CFLAGS) -nostartfiles -Wl,--gc-sections
 
 # Targets
@@ -50,8 +50,10 @@ bl.bin: bl.elf
 	arm-none-eabi-objcopy -O binary bl.elf bl.bin
 app.elf: $(APP_OBJECTS)
 	arm-none-eabi-gcc $(LFLAGS) -Tapp.ld -Wl,-Map=app.map -o app.elf $(APP_OBJECTS) $(LIBRARIES)
+	arm-none-eabi-size -d app.elf
 bl.elf: $(BL_OBJECTS)
 	arm-none-eabi-gcc $(LFLAGS) -Tbl.ld -Wl,-Map=bl.map -o bl.elf $(BL_OBJECTS) $(LIBRARIES)
+	arm-none-eabi-size -d bl.elf
 app/src/startup.o: app/src/startup.s
 	arm-none-eabi-as $(AFLAGS) app/src/startup.s -o app/src/startup.o
 bl/src/startup.o: bl/src/startup.s

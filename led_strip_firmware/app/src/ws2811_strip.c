@@ -2,13 +2,14 @@
 
 #include "strip.h"
 #include "stm32f0xx.h"
+#include "lux_device.h"
 
 #define PULSE_PERIOD 61
 #define PULSE_WIDTH_0 18
 #define PULSE_WIDTH_1 35
 #define RESET_CYCLES 40
 
-#define STRIP_MEMORY_LENGTH (cfg.strip_length*3)
+#define STRIP_MEMORY_LENGTH (lux_device_config.strip_length*3)
 #define MAX_STRIP_MEMORY_LENGTH (MAX_STRIP_LENGTH*3)
 
 #define PULSE_BUFFER_LENGTH 64
@@ -126,22 +127,27 @@ static void fill_dma_buffer(uint8_t* start, uint16_t len)
     }
 }
 
-void strip_write(uint8_t* rgb_data)
+void strip_write(uint8_t* rgb_data, uint16_t begin_pos, uint16_t end_pos)
 {
-    int i;
-
-    for(i=0;i<STRIP_MEMORY_LENGTH;i++)
+    uint16_t i = begin_pos * 3;
+    for(uint16_t p = begin_pos; p < end_pos; p++)
     {
+        if (p >= MAX_STRIP_LENGTH)
+            break;
         strip_memory[i+1]=rgb_data[i];
         strip_memory[i]=rgb_data[i+1];
         i += 2;
         strip_memory[i]=rgb_data[i];
     }
+} 
+
+void strip_flush(void)
+{
     data_pointer=strip_memory;
     byte_counter=STRIP_MEMORY_LENGTH;
     reset_counter=RESET_CYCLES;
 
-    for(i=0;i<PULSE_BUFFER_LENGTH;i++)
+    for(uint16_t i=0; i<PULSE_BUFFER_LENGTH; i++)
     {
         pulse_buffer[i] = 0;
     }

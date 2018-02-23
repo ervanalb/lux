@@ -1,27 +1,21 @@
-#include "config.h"
-
+#include "lux_device.h"
 #include "stm32f0xx.h"
 
-struct config cfg;
-
-struct config cfg_flash __attribute__((section(".config"))) = {
-    .strip_length = MAX_STRIP_LENGTH,
-    .multicast_address_mask = 0x00000000,
-    .multicast_address      = 0xFFFFFFFF,
-    .unicast_addresses = {
-        0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,    
-        0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,    
-        0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,    
-        0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF
+struct lux_device_config cfg_flash __attribute__((section(".config"))) = {
+    .strip_length = 1,
+    .addresses = {
+        .multicast_mask = 0x00000000,
+        .multicast      = 0xFFFFFFFF,
+        .unicasts       = { LUX_ADDRESS_NEW },
     },
     .userdata = {}
 };
 
-void read_config_from_flash(){
-    cfg = cfg_flash;
+void lux_device_read_config(){
+    lux_device_config = cfg_flash;
 }
 
-FLASH_Status write_config_to_flash(){
+uint8_t lux_device_write_config(){
     FLASH_Status r;
     uint32_t a;
     uint32_t *d;
@@ -35,8 +29,8 @@ FLASH_Status write_config_to_flash(){
         goto fail;
 
     a = (uint32_t) &cfg_flash;
-    d = (uint32_t *) &cfg;
-    for(int i = 0; i < sizeof(cfg_flash); i += 4){
+    d = (uint32_t *) &lux_device_config;
+    for(uint32_t i = 0; i < sizeof(cfg_flash); i += 4){
         if((r = FLASH_ProgramWord(a, *d++)) != FLASH_COMPLETE)
             goto fail;
         a += 4;
@@ -46,5 +40,5 @@ fail:
     FLASH_Lock();
     __enable_irq();
 
-    return r;
+    return (r == FLASH_COMPLETE) ? 0 : 1;
 }

@@ -168,7 +168,7 @@ void lux_init()
 }
 
 // Do any necessary work to handle incoming or outgoing data
-// Calls *lux_fn_rx() when a packet has arrived.
+// Calls lux_fn_rx() when a packet has arrived.
 // Call this repeatedly in your application's main loop.
 void lux_codec()
 {
@@ -194,7 +194,9 @@ void lux_codec()
                 }
                 if(destination_pointer == LUX_DESTINATION_SIZE)
                 {
-                    if(lux_fn_match_destination(tmp_destination))
+                    uint32_t destination;
+                    memcpy(&destination, tmp_destination, sizeof(destination));
+                    if(lux_fn_match_destination(destination))
                     {
                         if(lux_packet_in_memory)
                         {
@@ -203,7 +205,7 @@ void lux_codec()
                         }
                         else
                         {
-                            memcpy(lux_packet.destination, tmp_destination, sizeof(lux_packet.destination));
+                            lux_packet.destination = destination;
                             goto read_command;
                         }
                     }
@@ -309,7 +311,9 @@ void lux_codec()
                 case WRITE_DESTINATION:
                     while(destination_pointer<LUX_DESTINATION_SIZE)
                     {
-                        if(!cobs_encode_and_send(lux_packet.destination[destination_pointer++])) goto encoder_stalled;
+                        uint8_t d;
+                        memcpy(&d, ((uint8_t*) &lux_packet.destination) + destination_pointer++, 1);
+                        if(!cobs_encode_and_send(d)) goto encoder_stalled;
                     }
                     encoder_state=WRITE_COMMAND;
                 case WRITE_COMMAND:

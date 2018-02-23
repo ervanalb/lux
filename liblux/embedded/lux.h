@@ -17,23 +17,23 @@
 #define LUX_PACKET_MEMORY_ALLOCATED_SIZE (LUX_PACKET_MEMORY_SIZE+LUX_CRC_SIZE)
 
 // Run lux_init once at the start of the program
-void lux_init();
+void lux_init(void);
 
 // Run lux_codec frequently (polling)
-void lux_codec();
+void lux_codec(void);
 
 // Run lux_stop_rx before filling the packet memory with data to transmit
-void lux_stop_rx();
+void lux_stop_rx(void);
 
 // Run lux_start_tx to send a packet
-void lux_start_tx();
+void lux_start_tx(void);
 
 // Run lux_reset_counters to reset packet counters to zero
-void lux_reset_counters();
+void lux_reset_counters(void);
 
 // Useful buffers for the application
 struct lux_packet {
-    uint8_t destination[LUX_DESTINATION_SIZE];
+    uint32_t destination;
     uint8_t command;
     uint8_t index;
     uint8_t payload[LUX_PACKET_MEMORY_ALLOCATED_SIZE];
@@ -44,15 +44,6 @@ struct lux_packet {
 extern struct lux_packet lux_packet;
 
 // Counters for problematic data
-struct lux_counters {
-    uint32_t good_packet;
-    uint32_t malformed_packet;
-    uint32_t packet_overrun;
-    uint32_t bad_checksum;
-    uint32_t rx_interrupted;
-    uint32_t bad_address;
-};
-
 extern struct lux_counters lux_counters;
 
 // Flag indicating whether a valid packet has been received
@@ -62,12 +53,12 @@ extern uint8_t lux_packet_in_memory;
 // --------- Functions that need to be provided: -----------
 
 // This function is called to see if a packet destination matches this device.
-extern uint8_t lux_fn_match_destination(uint8_t* dest);
+uint8_t lux_fn_match_destination(uint32_t dest);
 
 // This function is called when a packet has been received.
 // It doesn't have to do anything, but if lux_packet_in_memory
 // isn't cleared in a timely fashion, you may drop packets
-extern void lux_fn_rx(); 
+void lux_fn_rx(void); 
 
 
 #endif

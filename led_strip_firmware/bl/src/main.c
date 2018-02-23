@@ -1,5 +1,6 @@
 #include "hal.h"
 #include "lux.h"
+#include "lux_device.h"
 #include <string.h>
 
 #include "stm32f0xx.h"
@@ -13,75 +14,37 @@ extern uint32_t _siisr;
 #define FLASH_END   ((uint32_t) (&_eapp))
 #define ISR_START   ((uint32_t) (&_siisr))
 
-#ifdef WS2811
-const char id[]="WS2811 LED Strip Bootloader";
-#elif LPD6803
-const char id[]="LPD6803 LED Strip Bootloader";
-#else
-const char id[]="Lux Bootloader";
-#endif
-#define ID_SIZE (sizeof(id)-1)
+const char lux_device_id[] = "Lux Bootloader";
+const uint16_t lux_device_id_length = sizeof(lux_device_id)-1;
+const uint16_t lux_device_max_strip_length = 0;
 
 //uint32_t erased_page = 0;
 uint32_t flash_base_addr = 0;
 
-void main()
-{
+int __attribute__((noreturn)) main(void) {
     init();
-
-    lux_init();
-
+    lux_device_init();
     led_off();
 
-    for(;;)
-    {
-        lux_codec();
+    for(;;) {
+        lux_device_poll();
     }
 }
 
-uint8_t lux_fn_match_destination(uint8_t* dest)
-{
-    return *(uint32_t*)dest == 0xFFFFFFFF || *(uint32_t*)dest == 0x80000000;
+void lux_device_read_config(void) {
+    lux_device_config = (struct lux_device_config) {
+        .strip_length = 0,
+        .addresses = {
+            .multicast_mask = 0x00000000,
+            .multicast      = 0xFFFFFFFF,
+            .unicasts       = { LUX_ADDRESS_BL },
+        },
+        .userdata = {},
+    };
 }
 
-static void clear_destination()
-{
-    memset(lux_packet.destination, 0, sizeof(lux_packet.destination));
-}
-
-static void send_ack_crc()
-{
-    lux_stop_rx();
-    clear_destination();
-
-    lux_packet.payload_length = 5;
-    lux_packet.payload[0] = 0;
-    memcpy(&lux_packet.payload[1], lux_packet.crc, sizeof(lux_packet.crc));
-
-    lux_start_tx();
-}
-
-static void send_nak()
-{
-    lux_stop_rx();
-    clear_destination();
-
-    lux_packet.payload_length = 5;
-    lux_packet.payload[0] = 255;
-    memcpy(&lux_packet.payload[1], lux_packet.crc, sizeof(lux_packet.crc));
-
-    lux_start_tx();
-}
-
-static void send_id()
-{
-    lux_stop_rx();
-    clear_destination();
-
-    lux_packet.payload_length = ID_SIZE;
-    memcpy(lux_packet.payload, id, ID_SIZE);
-
-    lux_start_tx();
+uint8_t lux_device_write_config(void) {
+    return 0;
 }
 
 static uint8_t flash_wait()
@@ -128,38 +91,30 @@ static uint8_t erase_flash(uint32_t addr)
     return 1; 
 }
 
-static void baseaddr_flash_cmd()
-{
-    if(lux_packet.payload_length != 4) goto fail;
+static uint8_t baseaddr_flash_cmd() {
+    if(lux_packet.payload_length != 4)
+        return LUX_DEVICE_REPLY_NAK;
 
     memcpy(&flash_base_addr, &lux_packet.payload[0], sizeof(flash_base_addr));
-
-    send_ack_crc();
-    return;
-fail:
-    send_nak();
+    return LUX_DEVICE_REPLY_ACK;
 }
 
-static void erase_flash_cmd()
-{
+static uint8_t erase_flash_cmd() {
     uint32_t addr;
-
     memcpy(&addr, &lux_packet.payload[0], sizeof(uint32_t));
 
-    if(lux_packet.payload_length != 4) goto fail;
+    if(lux_packet.payload_length != 4)
+        return LUX_DEVICE_REPLY_NAK;
     //if((FLASH_START > addr) || (addr + 1024 > FLASH_END)) goto fail;
-    if(!IS_FLASH_PROGRAM_ADDRESS(addr)) goto fail;
+    if(!IS_FLASH_PROGRAM_ADDRESS(addr))
+        return LUX_DEVICE_REPLY_NAK;
 
-    if(erase_flash(addr) != 0) goto fail;
-        
-    send_ack_crc();
-    return;
-fail:
-    send_nak();
+    if(erase_flash(addr) != 0)
+        return LUX_DEVICE_REPLY_NAK;
+    return LUX_DEVICE_REPLY_ACK;
 }
 
-static uint8_t write_flash(uint8_t* data, uint32_t addr, uint16_t len)
-{
+static uint8_t write_flash(uint8_t* data, uint32_t addr, uint16_t len) {
     uint32_t i = 0;
     //uint32_t word;
     uint16_t halfword;
@@ -192,93 +147,86 @@ static uint8_t write_flash(uint8_t* data, uint32_t addr, uint16_t len)
     FLASH_Lock();
     __enable_irq();
 
-    if (rc != FLASH_COMPLETE) return 1;
-    return 0;
+    if (rc == FLASH_COMPLETE) return 0;
+    return 1;
 }
 
-static void write_flash_cmd()
-{
+static uint8_t write_flash_cmd() {
     uint32_t addr = flash_base_addr + lux_packet.index * 1024;
     uint16_t len = lux_packet.payload_length;
 
-    if(!(IS_FLASH_PROGRAM_ADDRESS(addr) && IS_FLASH_PROGRAM_ADDRESS(addr + len - 1))) goto fail;
+    if(!(IS_FLASH_PROGRAM_ADDRESS(addr) && IS_FLASH_PROGRAM_ADDRESS(addr + len - 1)))
+        return LUX_DEVICE_REPLY_NAK;
     //if((FLASH_START > addr) || (addr > FLASH_END)) goto fail;
     //if((FLASH_START > (addr+len)) || ((addr+len) > FLASH_END)) goto fail;
     // I think this is redundant @zbanks
     //if((erased_page > (addr)) || ((addr+len) > (erased_page + 1024))) goto fail;
 
-    if(write_flash(lux_packet.payload, addr, len)) goto fail;
-
-    lux_stop_rx();
-    clear_destination();
+    if(write_flash(lux_packet.payload, addr, len))
+        return LUX_DEVICE_REPLY_NAK;
 
     lux_packet.payload_length = len;
     memcpy(lux_packet.payload, (void *) addr, len);
-
-    lux_start_tx();
-    return;
-fail:
-    send_nak();
+    return LUX_DEVICE_REPLY_PACKET;
 }
 
-static void read_flash_cmd()
-{
+static uint8_t read_flash_cmd() {
     uint32_t addr = flash_base_addr + lux_packet.index * 1024;
     uint16_t len = 1024;
 
-    if(lux_packet.payload_length != 0) goto fail;
-    if(len > LUX_PACKET_MEMORY_SIZE) goto fail;
-    if((FLASH_START > addr) || (addr > FLASH_END)) goto fail;
-    if((FLASH_START > (addr+len)) || ((addr+len) > FLASH_END)) goto fail;
-
-    lux_stop_rx();
-    clear_destination();
+    if(lux_packet.payload_length != 0)
+        return LUX_DEVICE_REPLY_NAK;
+    if(len > LUX_PACKET_MEMORY_SIZE)
+        return LUX_DEVICE_REPLY_NAK;
+    if((FLASH_START > addr) || (addr > FLASH_END))
+        return LUX_DEVICE_REPLY_NAK;
+    if((FLASH_START > (addr+len)) || ((addr+len) > FLASH_END))
+        return LUX_DEVICE_REPLY_NAK;
 
     lux_packet.payload_length = len;
     memcpy(lux_packet.payload, (void *) addr, len);
-
-    lux_start_tx();
-    return;
-fail:
-    send_nak();
+    return LUX_DEVICE_REPLY_PACKET;
 }
 
-static void invalidate_app_cmd()
-{
-    if(erase_flash(FLASH_START)) goto fail;
-    if(write_flash((uint8_t*)ISR_START, FLASH_START, 1024)) goto fail;
-
-    send_ack_crc();
-    return;
-fail:
-    send_nak();
+static uint8_t invalidate_app_cmd() {
+    if(erase_flash(FLASH_START))
+        return LUX_DEVICE_REPLY_NAK;
+    if(write_flash((uint8_t*)ISR_START, FLASH_START, 1024))
+        return LUX_DEVICE_REPLY_NAK;
+    return LUX_DEVICE_REPLY_ACK;
 }
 
-void lux_fn_rx()
-{
-    lux_packet_in_memory = 0;
-
-    switch(lux_packet.command)
-    {
-        case LUX_CMD_RESET:
-            reset(); // Never returns
-        case LUX_CMD_GET_ID:
-            send_id();
-            break;
-        case LUX_CMD_INVALIDATEAPP:
-            invalidate_app_cmd();
-            break;
-        case LUX_CMD_FLASH_BASEADDR:
-            baseaddr_flash_cmd();
-            break;
-        case LUX_CMD_FLASH_ERASE:
-            erase_flash_cmd();
-            break;
-        case LUX_CMD_FLASH_WRITE:
-            write_flash_cmd();
-            break;
-        case LUX_CMD_FLASH_READ:
-            read_flash_cmd();
-            break;
+uint8_t lux_device_handle_packet() {
+    switch(lux_packet.command) {
+    case LUX_CMD_INVALIDATEAPP:
+        return invalidate_app_cmd();
+    case LUX_CMD_FLASH_BASEADDR:
+        return baseaddr_flash_cmd();
+    case LUX_CMD_FLASH_ERASE:
+        return erase_flash_cmd();
+    case LUX_CMD_FLASH_WRITE:
+        return write_flash_cmd();
+    case LUX_CMD_FLASH_READ:
+        return read_flash_cmd();
     }
+    return LUX_DEVICE_REPLY_NAK;
+}
+
+uint8_t lux_device_get_button(void) {
+    return button();
+}
+
+void lux_device_set_led(uint8_t state) {
+    if (state)
+        led_on();
+    else
+        led_off();
+}
+
+void lux_device_bootloader(void) {
+    reset();
+}
+
+void lux_device_reset(void) {
+    reset();
 }

@@ -136,12 +136,14 @@ static int blink_led(int fd, uint32_t addr, int count) {
     };
     struct lux_packet response;
 
-    while (count--) {
+    while (1) {
+        if (count-- <= 0) break;
         packet.payload[0] = 1;
         int rc = lux_command(fd, &packet, &response, LUX_ACK);
         if (rc < 0) PERROR("Unable to turn on  LED for %#08x", addr);
         usleep(100000);
 
+        if (count-- <= 0) break;
         packet.payload[0] = 0;
         rc = lux_command(fd, &packet, &response, LUX_ACK);
         if (rc < 0) PERROR("Unable to turn off LED for %#08x", addr);
@@ -224,6 +226,22 @@ static int set_length(int fd, int addr, uint16_t len) {
     return 0;
 }
 
+static int reset(int fd, int addr, uint8_t flags) {
+    struct lux_packet command = {
+        .destination = addr,
+        .command = LUX_CMD_RESET,
+        .payload_length = 1,
+        .payload = { flags },
+    };
+    int rc = lux_write(fd, &command, 0);
+    if (rc < 0) {
+        PERROR("Unable to send reset");
+        return -1;
+    }
+    INFO("Reset address %#08x (flags %#x)", addr, flags);
+    return 0;
+}
+
 static int usage() {
     fprintf(stderr, "\n\
   Usage: luxctl <lux_uri> <commands...>\n\
@@ -247,6 +265,8 @@ static int usage() {
     -S                  Reset packet statistics\n\
     -L <len>            Set strip length\n\
     -C                  Commit config (legacy; do not use)\n\
+    -r                  Reset device\n\
+    -R                  Reset device to bootloader\n\
   \n\
   Examples:\n\
     Blink LED once, set address of 0x80000000 to 0x90, set the length to 100, and blink the LED\n\
@@ -278,7 +298,7 @@ int main(int argc, char ** argv) {
     optind = 2;
     int opt = -1;
     int rc = 0;
-    while ((opt = getopt(argc, argv, "a:A:f:i:b:sSL:Ch")) != -1) {
+    while ((opt = getopt(argc, argv, "a:A:f:i:b:sSL:CrRh")) != -1) {
         uint32_t loptarg = 0;
         if (optarg != NULL)
             loptarg = strtoul(optarg, NULL, 0);
@@ -313,6 +333,12 @@ int main(int argc, char ** argv) {
             break;
         case 'C':; // commit config
             rc = commit_config(fd, address);
+            break;
+        case 'r':; // reset
+            rc = reset(fd, address, 0x00);
+            break;
+        case 'R':; // reset to bootloader
+            rc = reset(fd, address, 0x01);
             break;
         case 'h':; // usage / help
         default:

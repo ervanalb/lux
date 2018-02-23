@@ -67,7 +67,7 @@ class Bus(object):
         self.s = None
         self.dev = device
         self.rx = b''
-        self.timeout = 1.0
+        self.timeout = 0.5
 
     def __enter__(self):
         self.open()
