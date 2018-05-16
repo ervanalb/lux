@@ -1,4 +1,4 @@
-update=Sat 23 Apr 2016 05:52:25 PM EDT
+update=Tue 15 May 2018 06:47:55 PM EDT
 version=1
 last_client=kicad
 [pcbnew]
@@ -108,3 +108,4 @@ LibName30=contrib
 LibName31=valves
 LibName32=/home/eric/mystuff/documents/kicad/custom
 LibName33=/home/zbanks/lux/erics libs/custom
+LibName34=bts4175sga
