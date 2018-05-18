@@ -30,9 +30,8 @@ int __attribute__((noreturn)) main(void) {
 
 
 static void set_frame(void) {
-    uint16_t begin = lux_packet.index * LUX_PACKET_MAX_SIZE;
-    uint16_t end = begin + lux_packet.payload_length;
-    strip_write(lux_packet.payload, begin, end);
+    uint16_t offset = lux_packet.index * 340; // roughly (LUX_PACKET_MAX_SIZE / 3)
+    strip_write(lux_packet.payload, lux_packet.payload_length, offset);
 }
 
 static uint8_t sync_frame(void) {

@@ -71,19 +71,19 @@ void strip_init()
     DMA_Cmd(DMA1_Channel3, ENABLE);
 }
 
-void strip_write(uint8_t* rgb_data, uint16_t begin_pos, uint16_t end_pos)
+void strip_write(uint8_t* rgb_data, uint16_t length, uint16_t offset)
 {
     uint16_t* strip = &strip_memory[2];
-    for(uint16_t i = begin_pos; i < end_pos; i++)
+    uint16_t i = 0;
+    uint16_t p = offset;
+    while ((i + 3) <= length && p < MAX_STRIP_LENGTH)
     {
-        if (i >= MAX_STRIP_LENGTH)
-            break;
-
         uint8_t r = (*rgb_data++) >> 3;
         uint8_t g = (*rgb_data++) >> 3;
         uint8_t b = (*rgb_data++) >> 3;
 
         *strip++ = 0x8000 | (b << 10) | (r << 5) | g;
+        i += 3; p++;
     }
 }
 

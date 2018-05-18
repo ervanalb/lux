@@ -127,17 +127,17 @@ static void fill_dma_buffer(uint8_t* start, uint16_t len)
     }
 }
 
-void strip_write(uint8_t* rgb_data, uint16_t begin_pos, uint16_t end_pos)
+void strip_write(uint8_t* rgb_data, uint16_t length, uint16_t offset)
 {
-    uint16_t i = begin_pos * 3;
-    for(uint16_t p = begin_pos; p < end_pos; p++)
+    uint16_t i = 0;
+    uint16_t p = offset * 3;
+    while ((i + 3) <= length && (p + 3) <= MAX_STRIP_MEMORY_LENGTH)
     {
-        if (p >= MAX_STRIP_LENGTH)
-            break;
-        strip_memory[i+1]=rgb_data[i];
-        strip_memory[i]=rgb_data[i+1];
-        i += 2;
-        strip_memory[i]=rgb_data[i];
+        strip_memory[p+1] = rgb_data[i];
+        strip_memory[p] = rgb_data[i+1];
+        i += 2; p += 2;
+        strip_memory[p] = rgb_data[i];
+        i += 1; p += 1;
     }
 } 
 
