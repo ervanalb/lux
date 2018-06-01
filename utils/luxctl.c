@@ -112,7 +112,7 @@ static int commit_config(int fd, int addr) {
     // This is not needed for most firmware
     struct lux_packet response;
     struct lux_packet packet = {
-        .command = LUX_CMD_RESET_PKTCNT,
+        .command = LUX_CMD_COMMIT_CONFIG,
         .destination = addr, 
         .index = 0,
         .payload_length = 0,
