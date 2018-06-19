@@ -360,6 +360,7 @@ int lux_command(int fd, struct lux_packet * packet, struct lux_packet * response
     if (flags & LUX_RETRY) retry = 3;
 
     while (retry--) {
+        INFO("RETRY");
         int rc = lux_write(fd, packet, flags);
         if (rc < 0) continue;
 

@@ -3,10 +3,11 @@
 
 #include "lux.h"
 
-#define USERDATA_SIZE 900
+#define USERDATA_SIZE 512
 
-struct __attribute__((__packed__)) lux_device_config {
+struct __attribute__((__packed__,aligned(4))) lux_device_config {
     uint16_t strip_length;
+    uint16_t _padding;
     struct lux_addresses addresses;
     char userdata[USERDATA_SIZE];
 };

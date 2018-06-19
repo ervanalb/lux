@@ -24,6 +24,7 @@ CFLAGS += -DSTM32F031
 CFLAGS += -DUSE_STDPERIPH_DRIVER
 CFLAGS += -DWS2811
 #CFLAGS += -DLPD6803
+CFLAGS += -DLUX_DEVICE_ALWAYS_WRITE_CONFIG
 CFLAGS += -fdata-sections -ffunction-sections -flto
 LFLAGS  = $(CFLAGS) -nostartfiles -Wl,--gc-sections
 

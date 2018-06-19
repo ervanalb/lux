@@ -13,6 +13,7 @@ extern enum loglevel {
     LOGLEVEL_DEBUG,
     LOGLEVEL_INFO,
     LOGLEVEL_WARN,
+    LOGLEVEL_SHOW,
     LOGLEVEL_ERROR,
 } loglevel;
 // enum loglevel loglevel = LOGLEVEL_INFO;
@@ -29,6 +30,7 @@ extern enum loglevel {
 
 #define FAIL(...) ({ERROR(__VA_ARGS__); abort();})
 #define ERROR(...) _ERR_MSG(ERROR, ## __VA_ARGS__)
+#define SHOW(...)  _ERR_MSG(SHOW,  ## __VA_ARGS__)
 #define WARN(...)  _ERR_MSG(WARN,  ## __VA_ARGS__)
 #define INFO(...)  _ERR_MSG(INFO,  ## __VA_ARGS__)
 #define DEBUG(...) _ERR_MSG(DEBUG, ## __VA_ARGS__)

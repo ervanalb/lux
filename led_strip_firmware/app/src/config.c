@@ -1,7 +1,7 @@
 #include "lux_device.h"
 #include "stm32f0xx.h"
 
-struct lux_device_config cfg_flash __attribute__((section(".config"))) = {
+struct lux_device_config cfg_flash __attribute__((section(".config"),aligned(4))) = {
     .strip_length = 1,
     .addresses = {
         .multicast_mask = 0x00000000,
@@ -16,24 +16,27 @@ void lux_device_read_config(){
 }
 
 uint8_t lux_device_write_config(){
-    FLASH_Status r;
-    uint32_t a;
-    uint32_t *d;
-
+    FLASH_Status r = FLASH_COMPLETE;
     __disable_irq();
     FLASH_Unlock();
 
     FLASH_ClearFlag(FLASH_FLAG_EOP | FLASH_FLAG_PGERR | FLASH_FLAG_WRPERR); 
 
-    if((r = FLASH_ErasePage((uint32_t) (&cfg_flash))) != FLASH_COMPLETE)
+    // TODO: Fix this to flash properly across pages, if cfg_flash is not aligned
+    uint32_t a = (uint32_t) &cfg_flash;
+    if ((r = FLASH_ErasePage(a) != FLASH_COMPLETE))
         goto fail;
 
-    a = (uint32_t) &cfg_flash;
-    d = (uint32_t *) &lux_device_config;
-    for(uint32_t i = 0; i < sizeof(cfg_flash); i += 4){
-        if((r = FLASH_ProgramWord(a, *d++)) != FLASH_COMPLETE)
+    FLASH_ClearFlag(FLASH_FLAG_EOP | FLASH_FLAG_PGERR | FLASH_FLAG_WRPERR); 
+    const uint8_t * d = (const uint8_t *) &lux_device_config;
+    for (uint16_t i = 0; i < 1024; i += 2) {
+        uint16_t w = 0;
+        if (i + 4 < sizeof(cfg_flash)) {
+            w |= *d++;
+            w |= *d++ << 8;
+        }
+        if ((r = FLASH_ProgramHalfWord(a + i, w)) != FLASH_COMPLETE)
             goto fail;
-        a += 4;
     }
 
 fail:
